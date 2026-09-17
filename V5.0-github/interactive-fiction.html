@@ -1,0 +1,2326 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<script>
+// ══════════════════════════════════════════
+// 最早的全局错误捕获 — 抓所有脚本加载/运行错误
+// ══════════════════════════════════════════
+window.onerror = function(msg, src, line, col, err) {
+  var m = '[EarlyError] ' + msg + ' @ ' + src + ':' + line + ':' + col;
+  if (err && err.stack) m += '\nStack:' + err.stack;
+  try { var x=new XMLHttpRequest(); x.open('POST','/api/log',true); x.setRequestHeader('Content-Type','application/json'); x.timeout=5000; x.send(JSON.stringify({level:'error',message:m,source:src,lineno:line,stack:err?err.stack:''})); } catch(e){}
+  return false; // still show in console
+};
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="manifest" href="manifest.json">
+<title>命运之书 · 互动小说引擎</title>
+<style>
+  :root {
+    --bg: #070705; --panel: #0a0a08; --panel-bg: #0a0a08; --card: #0f0f0d; --card-hover: #161614;
+    --border: #1a1a18; --border-light: rgba(201,168,76,.08);
+    --gold: #c9a84c; --gold-light: #e2c97e; --gold-pale: #f0d88a;
+    --gold-dark: #8b6914; --gold-dim: rgba(201,168,76,.3);
+    --text: #b8b0a0; --text-dim: #585852; --text-bright: #e0d8c8;
+    --accent: #c9a84c; --accent-glow: rgba(201,168,76,.2);
+    --danger: #d05555; --success: #4caf7c; --hp: #4caf7c;
+    --mp: #c9a84c; --sp: #c9a84c; --exp: #a880c8;
+    --ai-color: #6ae0b0;
+    --font-main: 'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;
+    --font-mono: 'Cascadia Code','Fira Code','Consolas',monospace;
+    --overlay-bg: rgba(7,7,5,0.92);
+    --menu-bg: radial-gradient(ellipse at center, #0c0c0a 0%, #070705 100%);
+    --menu-glow: rgba(201,168,76,.12);
+    --btn-primary-from: #140e02; --btn-primary-to: #261a06;
+    --btn-primary-hover: #382a10;
+    --input-bg: #090908; --code-bg: #070707;
+    --title-grad-from: #ffeec0; --title-grad-to: #8b6914;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  /* ══ 背景对角金纹（海报同款）══ */
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:linear-gradient(145deg,transparent 35%,rgba(201,168,76,.008) 40%,rgba(240,216,138,.02) 42%,rgba(201,168,76,.008) 44%,transparent 50%);
+  }
+  body::after {
+    content:''; position:fixed; bottom:0; right:0; width:70%; height:60%; pointer-events:none; z-index:0;
+    background:radial-gradient(ellipse at 70% 80%,rgba(201,168,76,.015) 0%,transparent 60%);
+  }
+
+  body { font-family: var(--font-main); background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; position:relative; z-index:1; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+  #topbar { display: flex; align-items: center; gap: 12px; padding: 8px 20px; background: var(--panel); border-bottom: 1px solid var(--border); z-index: 10; position:relative; }
+  /* 顶栏金线装饰 */
+  #topbar::after { content:''; position:absolute; bottom:-1px; left:20%; right:20%; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dark),var(--gold),var(--gold-dark),transparent); opacity:0; transition:opacity .6s; }
+  #topbar:hover::after { opacity:1; }
+
+  #topbar { display: flex; align-items: center; gap: 10px; padding: 10px 18px; background: linear-gradient(180deg, rgba(14,14,11,.98), rgba(9,9,7,.98)); border-bottom: 1px solid var(--border); z-index: 10; box-shadow: inset 0 -1px 0 rgba(255,255,255,.02); }
+  #topbar .title { font-size: 20px; font-weight: bold; background: linear-gradient(135deg, var(--title-grad-from), var(--title-grad-to)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
+  #topbar .subtitle { font-size: 12px; color: var(--text-dim); margin-left: 4px; }
+  #topbar .spacer { flex:1; }
+  .btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); cursor: pointer; font-size: 12px; font-family: var(--font-main); letter-spacing:0; transition: border-color .18s, background .18s, color .18s, box-shadow .18s, transform .18s; min-height: 30px; }
+  .btn:hover { border-color: rgba(201,168,76,.65); color: var(--text-bright); background: var(--card-hover); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+  .btn.primary { border-color: rgba(201,168,76,.45); color: var(--gold-light); background: linear-gradient(180deg, rgba(26,22,11,.96), rgba(17,15,9,.96)); }
+  .btn.primary:hover { border-color: var(--gold); color: var(--gold-pale); }
+  .btn.danger { border-color: rgba(208,85,85,.4); color: var(--danger); }
+  .btn.danger:hover { border-color: var(--danger); box-shadow: 0 4px 14px rgba(208,85,85,.08); }
+  .btn.sm { padding: 4px 9px; font-size: 10px; border-radius: 5px; letter-spacing:0; min-height: 24px; }
+  .btn.ai { border-color: rgba(106,224,176,.3); color: var(--ai-color); }
+  .btn.ai:hover { border-color: var(--ai-color); box-shadow: 0 0 16px rgba(106,224,176,.15); }
+  /* 伏笔系统按钮 */
+  .btn.foreshadow { border-color: rgba(168,138,200,.3); color: #b898d8; }
+  .btn.foreshadow:hover { border-color: rgba(180,150,210,.5); color: #c8a8e8; box-shadow: 0 0 14px rgba(160,128,200,.08); }
+  .btn.foreshadow.active {
+    border-color: #a070d0;
+    color: #c8a8e8;
+    box-shadow: 0 0 18px rgba(150,110,200,.14), inset 0 0 10px rgba(150,110,200,.05);
+    animation: fs-glow 2.5s infinite;
+  }
+  @keyframes fs-glow {
+    0%, 100% { box-shadow: 0 0 10px rgba(150,110,200,.1), inset 0 0 6px rgba(150,110,200,.04); }
+    50% { box-shadow: 0 0 20px rgba(170,130,220,.16), inset 0 0 12px rgba(170,130,220,.06); }
+    }
+  /* 伏笔栏 — 右侧面板内 */
+  #foreshadow-panel-list { max-height:160px;overflow-y:auto; }
+  .fs-item { display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-bottom:1px solid var(--border-light);font-size:11px; }
+  .fs-item:last-child { border-bottom:none; }
+  .fs-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px; }
+  .fs-dot.pending { background:#a070d0;box-shadow:0 0 4px rgba(160,112,208,.5); }
+  .fs-dot.resolved { background:#60aca8; }
+  .fs-body { flex:1;min-width:0; }
+  .fs-desc { color:var(--text);line-height:1.4;cursor:pointer; }
+  .fs-desc:hover { color:var(--gold-light); }
+  .fs-meta { font-size:9px;color:var(--text-dim);margin-top:1px; }
+  .fs-actions { display:flex;gap:3px;flex-shrink:0;margin-top:2px; }
+  .fs-btn { background:none;border:1px solid var(--border);color:var(--text-dim);font-size:9px;padding:1px 5px;border-radius:3px;cursor:pointer;font-family:var(--font-main); }
+  .fs-btn:hover { border-color:var(--gold);color:var(--gold); }
+
+
+
+
+  #main { display: flex; flex:1; overflow: hidden; position:relative; z-index:1; }
+  #story-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; background: linear-gradient(180deg, rgba(8,8,6,.98), rgba(6,6,5,.98)); position:relative; }
+  /* 面板右上角金角装饰 */
+  #story-panel::before { content:'✦'; position:absolute; top:6px; right:8px; font-size:8px; color:var(--gold); opacity:.08; pointer-events:none; }
+  #story-header { padding: 10px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; background: var(--panel); position:relative; }
+  #story-header .chapter { font-size: 14px; color: var(--gold); font-weight: bold; }
+  #story-header .scene { font-size: 12px; color: var(--text-dim); }
+  #story-content { flex:1; overflow-y: auto; padding: 26px 30px; line-height:1.95; font-size:15px; scroll-behavior:smooth; }
+  #story-content .narrator { color: var(--text-dim); font-style: italic; margin: 10px 0; }
+  #story-content .dialogue { color: var(--gold-light); margin: 10px 0; padding-left: 14px; border-left: 2px solid var(--gold); }
+  #story-content .action { color: var(--gold-pale); font-weight: bold; margin: 10px 0; letter-spacing:.5px; }
+  #story-content .action { color: var(--gold-pale); font-weight: bold; margin: 8px 0; }
+  #story-content .thought { color: #a080c0; font-style: italic; margin: 8px 0; }
+  #story-content .system { color: var(--danger); font-size: 13px; margin: 6px 0; }
+  #story-content .divider { text-align: center; color: var(--border); margin: 20px 0; font-size: 20px; letter-spacing: 8px; }
+  #story-content .separator { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+  #status-panel { width: 352px; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(12,12,10,.98), rgba(9,9,7,.98)); overflow-y: auto; position:relative; }
+  #status-panel::before { content:''; position:absolute; top:0; left:8px; right:8px; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dark),var(--gold),var(--gold-dark),transparent); opacity:.15; }
+  #status-panel h3 { padding: 12px 16px 10px; font-size: 14px; color: var(--gold); border-bottom: 1px solid var(--border); letter-spacing: 1px; position:relative; }
+  .stat-section { padding: 10px 16px; border-bottom: 1px solid var(--border-light); }
+  .stat-section h4 { font-size: 12px; color: rgba(201,168,76,.35); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 4px; }
+  .stat-section h4::before { content: '▾'; font-size: 10px; transition: transform .2s; display: inline-block; width: 12px; }
+  .stat-section.collapsed h4 { margin-bottom: 0; }
+  .stat-section.collapsed h4::before { transform: rotate(-90deg); }
+  .stat-section .section-body { transition: max-height .3s ease, opacity .2s; overflow: hidden; }
+  .stat-section.collapsed .section-body { max-height: 0 !important; opacity: 0; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; }
+  .stat-label { color: var(--text-dim); }
+  .stat-value { font-weight: bold; font-family: var(--font-mono); }
+  .stat-value.positive { color: var(--success); }
+  .stat-value.negative { color: var(--danger); }
+  .bar-wrap { height: 6px; background: #080807; border-radius: 3px; margin: 4px 0 8px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  .bar-fill.hp { background: linear-gradient(90deg, #1a4a2a, var(--hp)); }
+  .bar-fill.mp { background: linear-gradient(90deg, #3a2a10, var(--mp)); }
+  .bar-fill.sp { background: linear-gradient(90deg, #3a2a10, var(--sp)); }
+  .bar-fill.exp { background: linear-gradient(90deg, #2a1a4a, var(--exp)); }
+  .skill-tag { display: inline-block; padding: 2px 8px; margin: 2px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; font-size: 11px; color: var(--gold-light); cursor: help; transition: all .2s; }
+  .skill-tag:hover { border-color: var(--gold); background: #1a1a28; }
+  .item-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--text-dim); cursor: help; }
+  .item-row:hover { color: var(--text); }
+  .stat-row { cursor: help; }
+  .bar-wrap { cursor: help; }
+  .item-row .qty { color: var(--gold); }
+  .item-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; margin-left: 4px; }
+  .item-row:hover .item-actions { opacity: 1; }
+  .item-btn { padding: 0 4px; border: none; border-radius: 3px; background: rgba(255,255,255,0.05); color: var(--text-dim); cursor: pointer; font-size: 10px; line-height: 18px; transition: all .15s; }
+  .item-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-bright); }
+  .item-btn.btn-use:hover { background: rgba(76,175,124,0.2); color: var(--success); }
+  .item-btn.btn-equip:hover { background: rgba(201,168,76,0.2); color: var(--gold-light); }
+  .item-btn.btn-drop:hover { background: rgba(208,85,85,0.25); color: var(--danger); }
+  .item-btn.btn-unequip:hover { background: rgba(201,168,76,0.2); color: var(--gold-light); }
+  .toast-mini { position: fixed; top: 60px; right: 20px; padding: 8px 16px; border-radius: 4px; font-size: 13px; background: var(--card); border: 1px solid var(--gold); color: var(--gold-light); z-index: 100; animation: fadeInOut 2s ease forwards; pointer-events: none; }
+  @keyframes fadeInOut { 0%{opacity:0;transform:translateY(-8px);} 15%{opacity:1;transform:translateY(0);} 75%{opacity:1;} 100%{opacity:0;} }
+  .relation-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 12px; }
+  .rel-bar { width: 100px; height: 4px; background: #0c0c0a; border-radius: 2px; overflow: hidden; }
+  .rel-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+  .rel-fill.positive { background: var(--success); }
+  .rel-fill.negative { background: var(--danger); }
+  .rel-fill.neutral { background: var(--text-dim); }
+  .quest-item { padding: 4px 0; font-size: 12px; border-bottom: 1px solid var(--border-light); }
+  .quest-item .q-title { color: var(--gold-light); }
+  .quest-item .q-desc { color: var(--text-dim); font-size: 11px; }
+  .quest-item.complete .q-title { color: var(--success); text-decoration: line-through; }
+
+  #choice-bar { flex-shrink: 0; max-height: 45vh; overflow-y: auto; padding: 14px 18px 16px; background: linear-gradient(180deg, transparent 0%, rgba(10,10,8,.96) 8%); border-top: 1px solid var(--border); }
+  #choice-bar .choice-hint { font-size: 12px; color: var(--gold-light); margin-bottom: 10px; letter-spacing: 1px; }
+  #choices-container { display: flex; gap: 10px; flex-wrap: wrap; }
+  .choice-btn { flex: 1; min-width: 170px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; background: linear-gradient(180deg, rgba(18,18,14,.98), rgba(13,13,10,.98)); color: var(--text); cursor: pointer; font-size: 13px; font-family: var(--font-main); transition: all 0.22s; text-align: left; line-height: 1.45; }
+  .choice-btn:hover { border-color: var(--gold); background: var(--card-hover); box-shadow: 0 6px 18px rgba(0,0,0,.22); transform: translateY(-1px); }
+  .choice-btn .choice-num { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; background: rgba(201,168,76,.12); margin-right: 8px; font-size: 11px; color: var(--gold); }
+  .choice-btn.recommended { border-color: var(--gold); }
+  .choice-btn.recommended::after { content: '推荐'; font-size: 10px; color: var(--gold); margin-left: 8px; padding: 1px 6px; border: 1px solid var(--gold); border-radius: 8px; }
+  #custom-choice { display: flex; gap: 8px; margin-top: 8px; }
+  #custom-choice input { flex:1; padding: 8px 12px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 13px; font-family: var(--font-main); }
+  #custom-choice input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 8px rgba(201,168,76,.12); }
+  #custom-choice button { padding: 8px 16px; border: 1px solid var(--gold); border-radius: 4px; background: var(--btn-primary-from); color: var(--gold-light); cursor: pointer; font-size: 13px; font-family: var(--font-main); transition: all .3s; }
+  #custom-choice button:hover { background: var(--btn-primary-to); box-shadow: 0 0 12px rgba(201,168,76,.12); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(201,168,76,.2); }
+
+  @keyframes fadeInUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  .fade-in { animation: fadeInUp 0.4s ease; }
+  @keyframes pulse { 50% { box-shadow: 0 0 20px rgba(201,168,76,.2); } }
+  .pulse { animation: pulse 1.5s infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  #toast { position: fixed; top: 20px; right: 20px; z-index: 300; padding: 10px 20px; border-radius: 6px; font-size: 13px; pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: pre-line; max-width: 420px; }
+  #toast.show { opacity:1; }
+  #toast.success { background: #0a1a10; border:1px solid var(--success); color: var(--success); }
+  #toast.warning { background: #1a1008; border:1px solid var(--gold); color: var(--gold-light); }
+  #toast.error { background: #1a0a0a; border:1px solid var(--danger); color: var(--danger); }
+
+  /* ====== SETUP WIZARD ====== */
+  #setup-overlay { position: fixed; inset: 0; z-index: 100; background: var(--overlay-bg); display: flex; align-items: center; justify-content: center; }
+  #setup-overlay.hidden { display: none; }
+  #setup-card { width: 760px; max-height: 90vh; background: linear-gradient(180deg, rgba(14,14,11,.99), rgba(9,9,7,.99)); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 18px 48px rgba(0,0,0,.45); }
+  #setup-card h2 { text-align: center; font-size: 22px; padding: 20px 0 4px; background: linear-gradient(135deg, var(--title-grad-from), var(--title-grad-to)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
+
+  .setup-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 24px; gap: 0; }
+  .setup-tab { flex:1; padding: 10px 0; text-align: center; cursor: pointer; font-size: 13px; color: var(--text-dim); border-bottom: 2px solid transparent; transition: all .3s; }
+  .setup-tab:hover { color: var(--text); }
+  .setup-tab.active { color: var(--gold); border-bottom-color: var(--gold); font-weight: bold; }
+  .setup-tab .tab-num { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center; border-radius: 50%; margin-right: 6px; font-size: 11px; background: var(--border); }
+  .setup-tab.active .tab-num { background: var(--gold); color: #05050c; }
+
+  .setup-body { flex:1; overflow-y: auto; padding: 20px 24px; }
+  .setup-page { display: none; }
+  .setup-page.active { display: block; }
+
+  .setup-group { margin-bottom: 16px; }
+  .setup-group label { display: block; font-size: 13px; color: var(--gold); margin-bottom: 5px; letter-spacing: 1px; }
+  .setup-group .field-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+  .setup-group .field-header label { margin-bottom: 0; }
+  .setup-group .field-hint { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .setup-group input, .setup-group textarea, .setup-group select { width: 100%; padding: 9px 12px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 13px; font-family: var(--font-main); resize: vertical; transition: border-color .3s; }
+  .setup-group textarea { min-height: 70px; }
+  .setup-group input:focus, .setup-group textarea:focus, .setup-group select:focus { outline: none; border-color: var(--gold); }
+  .setup-row { display: flex; gap: 12px; }
+  .setup-row .setup-group { flex:1; }
+
+  /* Faction list */
+  .faction-list { display: flex; flex-direction: column; gap: 10px; }
+  .faction-item { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 12px; position: relative; animation: fadeInUp 0.3s ease; }
+  .faction-item .faction-row { display: flex; gap: 8px; }
+  .faction-item input { flex:1; padding: 7px 10px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-size: 12px; font-family: var(--font-main); }
+  .faction-item .faction-del { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; line-height: 20px; text-align: center; border: 1px solid var(--danger); border-radius: 50%; color: var(--danger); cursor: pointer; font-size: 14px; background: transparent; }
+  .faction-item .faction-del:hover { background: #1a0a0a; }
+  .btn-sm { padding: 4px 12px; font-size: 11px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text-dim); font-family: var(--font-main); transition: all .2s; }
+  .btn-sm:hover { border-color: var(--gold); color: var(--gold-light); }
+  .ai-gen-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--ai-color); border-radius: 8px; background: transparent; color: var(--ai-color); cursor: pointer; font-size: 11px; font-family: var(--font-main); transition: all .2s; white-space: nowrap; }
+  .ai-gen-btn:hover { background: #0a2018; border-color: #3ee8a0; }
+  .ai-gen-btn.generating { animation: pulse 1s infinite; border-color: #3ee8a0; }
+  .ai-overlay { position: fixed; inset:0; z-index: 250; background: rgba(5,5,12,0.88); display: flex; align-items: center; justify-content: center; }
+  .ai-overlay.hidden { display: none; }
+  .ai-dialog { width: 560px; max-height: 80vh; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px; overflow-y: auto; }
+  .ai-dialog h3 { color: var(--ai-color); margin-bottom: 4px; font-size: 15px; }
+  .ai-dialog .ai-target { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
+  .ai-dialog .ai-section-label { font-size: 12px; color: var(--gold); margin: 12px 0 4px; }
+  .ai-dialog .ai-prompt-box { width: 100%; min-height: 100px; padding: 10px; background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text-dim); font-size: 11px; font-family: var(--font-mono); resize: vertical; user-select: all; }
+  .ai-dialog .ai-response-box { width: 100%; min-height: 90px; padding: 10px; background: var(--input-bg); border: 1px solid var(--ai-color); border-radius: 4px; color: var(--text); font-size: 13px; font-family: var(--font-main); resize: vertical; }
+  .ai-dialog .ai-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .ai-dialog .ai-hint { font-size: 11px; color: var(--text-dim); margin-top: 8px; line-height: 1.5; }
+
+  .setup-footer { padding: 12px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  #setup-start { padding: 10px 32px; border: 2px solid var(--gold); border-radius: 6px; background: linear-gradient(135deg, #1a0e02, #2a1a06); color: var(--gold-light); cursor: pointer; font-size: 15px; font-weight: bold; font-family: var(--font-main); letter-spacing: 4px; transition: all .3s; }
+  #setup-start:hover { background: linear-gradient(135deg, #2a1a06, #3a2610); box-shadow: 0 0 30px rgba(201,168,76,.2); }
+  #setup-start:disabled { opacity: 0.35; cursor: not-allowed; }
+  .setup-sub { text-align: center; font-size: 12px; color: var(--text-dim); padding-bottom: 12px; }
+
+  .setup-summary { background: var(--card); border-radius: 6px; padding: 16px; margin-bottom: 12px; }
+  .setup-summary h4 { color: var(--gold); font-size: 13px; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .setup-summary .sum-row { display: flex; padding: 2px 0; font-size: 12px; }
+  .setup-summary .sum-label { color: var(--text-dim); width: 100px; flex-shrink: 0; }
+  .setup-summary .sum-value { color: var(--text); flex:1; }
+
+  .attr-preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .preset-btn { flex:1; padding: 7px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--text); cursor: pointer; font-size: 11px; text-align: center; transition: all .2s; min-width: 80px; }
+  .preset-btn:hover { border-color: var(--gold); }
+  .preset-btn.selected { border-color: var(--gold); background: #1a1208; }
+  .genre-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .genre-btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--text); cursor: pointer; font-size: 12px; font-family: var(--font-main); transition: all .2s; }
+  .genre-btn:hover { border-color: var(--gold); color: var(--gold-light); }
+  .genre-btn.selected { border-color: var(--gold); background: #1a1208; color: var(--gold-light); }
+  .genre-custom-wrap { display: flex; gap: 6px; margin-top: 6px; }
+  .genre-custom-wrap input { flex:1; padding: 6px 10px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-size: 12px; font-family: var(--font-main); }
+  .genre-custom-wrap input:focus { outline: none; border-color: var(--gold); }
+  @keyframes aiPulse { 0%,100% { border-color: var(--ai-color); } 50% { border-color: #3ee8a0; } }
+  .ai-loading { animation: aiPulse 1.2s infinite; }
+
+  /* Modal base */
+  .modal-overlay { position: fixed; inset:0; z-index: 200; background: rgba(5,5,12,0.85); display: flex; align-items: center; justify-content: center; }
+  .modal-overlay.hidden { display: none; }
+  .modal-card { width: 480px; max-height: 75vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+  .modal-card h3 { color: var(--gold); margin-bottom: 16px; }
+  .save-slot { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; margin: 6px 0; background: var(--card); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all .2s; }
+  .save-slot:hover { border-color: var(--gold); }
+  .save-slot .slot-info { font-size: 12px; color: var(--text-dim); }
+  .save-slot .slot-actions { display: flex; gap: 6px; }
+  #ai-modal .ai-textarea { width: 100%; min-height: 150px; padding: 10px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 13px; font-family: var(--font-main); resize: vertical; margin: 8px 0; }
+  #ai-modal .ai-context { width: 100%; min-height: 120px; padding: 10px; background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text-dim); font-size: 11px; font-family: var(--font-mono); margin: 8px 0; user-select: all; }
+
+  /* API Config */
+  #api-config-overlay { position: fixed; inset:0; z-index: 500; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+  #api-config-overlay.hidden { display: none; }
+  #api-config-card { width: 520px; max-height: 90vh; overflow-y: auto; background: linear-gradient(180deg, rgba(14,14,11,.99), rgba(9,9,7,.99)); border: 1px solid var(--border); border-radius: 12px; padding: 28px; box-shadow: 0 18px 48px rgba(0,0,0,.45); }
+  #api-config-card h2 { color: var(--gold); margin-bottom: 4px; font-size: 22px; }
+  #api-preset-grid .genre-btn { font-size: 13px; }
+  #api-preset-grid .genre-btn.active { border-color: var(--ai-color); color: var(--ai-color); background: #0a2018; }
+
+  /* Overlay 平滑渐入 */
+  .overlay-fade-in { animation: overlayFadeIn 0.5s ease-out forwards; }
+  @keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ====== MAIN MENU ====== */
+  #main-menu-overlay { position: fixed; inset: 0; z-index: 100; background: var(--menu-bg); display: flex; align-items: center; justify-content: center; }
+  #main-menu-overlay.hidden { display: none; }
+  #main-menu-card { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(92vw, 860px); padding: 36px 28px 28px; }
+  /* 主菜单背景光环 */
+  #main-menu-card { position:relative; }
+  #main-menu-card::before { content:''; position:absolute; top:50%; left:50%; width:60vmin; height:40vmin; transform:translate(-50%,-50%); background:radial-gradient(circle,rgba(201,168,76,.04) 0%,transparent 60%); pointer-events:none; animation:menuHalo 6s ease-in-out infinite; }
+  @keyframes menuHalo { 0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(.9)} 50%{opacity:1;transform:translate(-50%,-50%) scale(1.1)} }
+  #main-menu-card .menu-title { font-size: 44px; font-weight: bold; background: linear-gradient(135deg, var(--title-grad-from), var(--title-grad-to), #ffeec0); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 4px; margin-bottom: 0; filter:drop-shadow(0 2px 20px rgba(201,168,76,.12)); position:relative; z-index:1; }
+  #main-menu-card .menu-subtitle { font-size: 13px; color: var(--text-dim); letter-spacing: 3px; margin-bottom: 20px; position:relative; z-index:1; }
+  #main-menu-card .menu-decoration { font-size: 20px; color: var(--gold); opacity: 0.1; margin-bottom: 4px; letter-spacing: 8px; position:relative; z-index:1; animation:decoBreathe 4s ease-in-out infinite; filter:blur(.2px); }
+  @keyframes decoBreathe { 0%,100%{opacity:.08} 50%{opacity:.2} }
+  .menu-btn { width: min(100%, 360px); padding: 14px 18px; border: 1px solid var(--border); border-radius: 8px; background: rgba(14,14,11,.92); color: var(--text); cursor: pointer; font-size: 15px; font-family: var(--font-main); letter-spacing: 1px; transition: all .22s; text-align: left; display: flex; align-items: center; gap: 12px; position: relative; }
+  .menu-btn:hover { border-color: var(--gold); background: rgba(201,168,76,.04); transform: translateX(2px); box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+  .menu-btn .menu-icon { font-size: 14px; width: 24px; text-align: center; color: var(--gold-dim); }
+  .menu-btn .menu-label { flex:1; }
+  .menu-btn .menu-hint { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
+  .menu-btn .menu-arrow { color: var(--gold); opacity: 0; transition: opacity .4s; }
+  .menu-btn:hover .menu-arrow { opacity: .6; }
+  .menu-btn.primary { border-color: rgba(201,168,76,.45); }
+  .menu-btn.primary:hover { border-color: var(--gold-light); box-shadow: 0 0 30px rgba(201,168,76,.12); }
+  .menu-btn .hotkey { position: absolute; right: 16px; font-size: 10px; color: var(--text-dim); opacity: .25; font-family: var(--font-mono); }
+  .menu-footer { margin-top: 24px; font-size: 11px; color: var(--text-dim); opacity: 0.4; letter-spacing: 2px; }
+
+  .theme-selector { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .theme-selector .ts-label { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
+  .theme-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; transition: all .25s; position: relative; }
+  .theme-swatch:hover { transform: scale(1.2); }
+  .theme-swatch.active { border-color: var(--gold); box-shadow: 0 0 10px var(--menu-glow); transform: scale(1.15); }
+  .theme-swatch .ts-tip { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--text-dim); white-space: nowrap; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .theme-swatch:hover .ts-tip { opacity: 1; }
+  #topbar-theme-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--text-dim); cursor: pointer; font-size: 11px; font-family: var(--font-main); transition: all .2s; }
+  #topbar-theme-btn:hover { border-color: var(--gold); color: var(--gold-light); }
+
+  @media (max-width: 768px) {
+    #setup-card { width: 95vw; max-height: 95vh; }
+    #main-menu-card .menu-title { font-size: 32px; letter-spacing: 4px; }
+    .menu-btn { width: 280px; padding: 14px 20px; font-size: 15px; }
+    #status-panel { width: 260px; }
+    .setup-row { flex-direction: column; }
+    .ai-dialog { width: 95vw; }
+  }
+
+  /* ====== JOURNEY DIARY ====== */
+  #journey-diary-panel { position:fixed; top:0; right:0; width:400px; height:100vh; background:linear-gradient(180deg, rgba(14,14,11,.99), rgba(9,9,7,.99)); border-left:1px solid var(--border); z-index:150; display:flex; flex-direction:column; transition:transform .3s ease; box-shadow: -12px 0 36px rgba(0,0,0,.28); }
+#journey-diary-panel.hidden { transform:translateX(100%); pointer-events:none; }
+#journey-diary-panel.hidden { display:none; }
+.jd-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); }
+.jd-header h3 { font-size:14px; color:var(--gold); letter-spacing:2px; }
+.jd-close { background:none; border:1px solid var(--border); color:var(--text-dim); width:24px; height:24px; border-radius:4px; cursor:pointer; font-size:14px; }
+.jd-close:hover { border-color:var(--danger); color:var(--danger); }
+.jd-tabs { display:flex; border-bottom:1px solid var(--border); }
+.jd-tab { flex:1; padding:8px; text-align:center; font-size:12px; color:var(--text-dim); cursor:pointer; border-bottom:2px solid transparent; transition:all .2s; }
+.jd-tab:hover { color:var(--text); }
+.jd-tab.active { color:var(--gold); border-bottom-color:var(--gold); }
+#jd-content { flex:1; overflow-y:auto; padding:12px 16px; }
+.jd-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; }
+.jd-stat { padding:8px; background:var(--card); border:1px solid var(--border); border-radius:4px; text-align:center; }
+.jd-stat-label { font-size:10px; color:var(--text-dim); display:block; margin-bottom:2px; }
+.jd-stat-value { font-size:16px; color:var(--gold-light); font-weight:bold; font-family:var(--font-mono); }
+.jd-empty { text-align:center; color:var(--text-dim); padding:40px 20px; font-size:13px; }
+.jd-timeline { padding-left:16px; border-left:2px solid var(--border); }
+.jd-chapter-group { margin-bottom:16px; }
+.jd-chapter-marker { font-size:12px; color:var(--gold); font-weight:bold; margin-bottom:8px; padding:2px 8px; background:rgba(201,168,76,.08); border-radius:3px; display:inline-block; }
+.jd-entry { position:relative; padding:0 0 12px 20px; }
+.jd-entry-dot { position:absolute; left:-6px; top:4px; width:8px; height:8px; border-radius:50%; background:var(--gold); border:2px solid var(--panel); }
+.jd-entry-content { }
+.jd-entry-scene { font-size:11px; color:var(--text-dim); margin-bottom:2px; }
+.jd-entry-summary { font-size:12px; color:var(--text); line-height:1.6; cursor:help; }
+.jd-choice-list { display:flex; flex-direction:column; gap:8px; }
+.jd-choice-entry { padding:10px 12px; background:var(--card); border:1px solid var(--border); border-radius:6px; }
+.jd-choice-header { display:flex; justify-content:space-between; margin-bottom:4px; }
+.jd-choice-chapter { font-size:11px; color:var(--text-dim); }
+.jd-choice-state { font-size:11px; font-family:var(--font-mono); }
+.jd-choice-text { font-size:13px; color:var(--text); line-height:1.4; }
+.jd-custom-tag { display:inline-block; padding:1px 6px; background:rgba(201,168,76,.1); border:1px solid var(--gold-dark); border-radius:8px; font-size:10px; color:var(--gold-light); margin-right:6px; }
+.jd-items-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+.jd-item-card { padding:10px 8px; background:var(--card); border:1px solid var(--border); border-radius:6px; text-align:center; cursor:help; transition:all .2s; }
+.jd-item-card:hover { border-color:var(--gold); }
+.jd-item-emoji { font-size:24px; margin-bottom:4px; }
+.jd-item-name { font-size:11px; color:var(--text); }
+.jd-item-qty { font-size:10px; color:var(--gold); }
+.jd-equipped { padding:12px; background:var(--card); border:1px solid var(--border); border-radius:6px; }
+.jd-equipped-label { font-size:12px; color:var(--gold); margin-bottom:8px; }
+.jd-equipped-item { display:flex; justify-content:space-between; padding:4px 0; font-size:12px; }
+.jd-equipped-slot { color:var(--text-dim); }
+.jd-equipped-name { color:var(--text); }
+
+/* ====== SCENARIO PRESETS ====== */
+#scenario-presets-modal .modal-card { width:780px; max-width:95vw; max-height:85vh; }
+.sp-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; padding:12px 0; }
+.sp-card { padding:14px; background:var(--card); border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:all .25s; }
+.sp-card:hover { border-color:var(--gold); background:var(--card-hover); transform:translateY(-2px); }
+.sp-card.selected { border-color:var(--gold); background:linear-gradient(135deg,#1a1208,#2a1a0e); box-shadow:0 0 20px rgba(201,168,76,.15); }
+.sp-card-icon { font-size:28px; margin-bottom:6px; }
+.sp-card-name { font-size:14px; font-weight:bold; color:var(--text-bright); margin-bottom:4px; }
+.sp-card-tags { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px; }
+.sp-tag { padding:1px 6px; background:var(--border); border-radius:8px; font-size:10px; color:var(--text-dim); }
+.sp-card.selected .sp-tag { background:rgba(201,168,76,.12); color:var(--gold-light); }
+.sp-card-desc { font-size:11px; color:var(--text-dim); line-height:1.5; }
+#sp-custom-area { display:none; padding:12px 0; }
+.sp-custom-input-row { display:flex; gap:8px; margin-bottom:8px; }
+.sp-custom-input-row input { flex:1; padding:8px 12px; background:var(--input-bg); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:13px; font-family:var(--font-main); }
+.sp-custom-input-row input:focus { outline:none; border-color:var(--gold); }
+.sp-custom-rule { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--card); border:1px solid var(--border); border-radius:4px; margin-bottom:4px; font-size:13px; color:var(--text); }
+.sp-rule-del { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:16px; padding:0 4px; }
+.sp-rule-del:hover { color:var(--danger); }
+.sp-rule-num { display:inline-block; width:20px; height:20px; line-height:20px; text-align:center; border-radius:50%; background:var(--gold-dark); color:var(--bg); font-size:10px; margin-right:8px; flex-shrink:0; }
+.sp-preview-rule { display:flex; align-items:flex-start; padding:4px 0; font-size:12px; color:var(--text); line-height:1.5; }
+
+/* ====== STORY ASSISTANT ====== */
+#sa-fab { position:fixed; bottom:24px; right:24px; width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#0a2018,#0e3024); border:1px solid var(--ai-color); color:var(--ai-color); font-size:20px; cursor:pointer; z-index:140; display:flex; align-items:center; justify-content:center; transition:all .3s; box-shadow:0 4px 16px rgba(106,224,176,.15); }
+#sa-fab:hover { transform:scale(1.1); box-shadow:0 6px 24px rgba(106,224,176,.25); }
+#sa-fab.sa-fab-active { background:linear-gradient(135deg,#0e3024,#1a4a38); border-color:#3ee8a0; }
+#sa-panel { position:fixed; bottom:80px; right:24px; width:400px; max-height:500px; background:linear-gradient(180deg, rgba(14,14,11,.99), rgba(9,9,7,.99)); border:1px solid var(--border); border-radius:12px; z-index:140; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 14px 38px rgba(0,0,0,.42); }
+#sa-panel.hidden { display:none; }
+.sa-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--border); background:var(--card); }
+.sa-header h4 { font-size:13px; color:var(--ai-color); }
+.sa-clear-btn { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; }
+.sa-clear-btn:hover { color:var(--danger); }
+.sa-action-btn { background:none; border:1px solid var(--border); color:var(--text-dim); cursor:pointer; font-size:11px; padding:3px 6px; border-radius:4px; transition:all .2s; white-space:nowrap; }
+.sa-action-btn:hover { border-color:var(--ai-color); color:var(--ai-color); background:rgba(106,224,176,.06); }
+.sa-action-confirm { background:rgba(106,224,176,.1); border:1px solid var(--ai-color); color:var(--ai-color); cursor:pointer; font-size:12px; padding:4px 10px; border-radius:4px; margin-top:6px; }
+#sa-chat { flex:1; overflow-y:auto; padding:10px 14px; min-height:200px; max-height:340px; }
+.sa-welcome { text-align:center; color:var(--text-dim); font-size:12px; padding:30px 10px; line-height:1.6; }
+.sa-msg { margin-bottom:10px; display:flex; gap:8px; }
+.sa-msg-user { justify-content:flex-end; }
+.sa-msg-user .sa-msg-bubble { background:rgba(106,224,176,.08); border:1px solid rgba(106,224,176,.2); color:var(--text); }
+.sa-msg-assistant .sa-msg-bubble { background:var(--card); border:1px solid var(--border); color:var(--text); }
+.sa-msg-bubble { padding:8px 12px; border-radius:8px; font-size:13px; line-height:1.6; max-width:85%; word-break:break-word; }
+.sa-msg-avatar { width:24px; height:24px; border-radius:50%; background:var(--ai-color); color:var(--bg); font-size:10px; font-weight:bold; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.sa-msg-system { font-size:11px; color:var(--text-dim); text-align:center; padding:4px 0; }
+.sa-bubble-typing { color:var(--text-dim); font-style:italic; }
+.sa-typing .sa-bubble-typing { animation:pulse 1s infinite; }
+.sa-input-area { display:flex; gap:8px; padding:10px 14px; border-top:1px solid var(--border); background:var(--card); }
+.sa-input-area input { flex:1; padding:8px 12px; background:var(--input-bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; font-family:var(--font-main); }
+.sa-input-area input:focus { outline:none; border-color:var(--ai-color); box-shadow:0 0 8px rgba(106,224,176,.12); }
+.sa-send-btn { padding:8px 14px; background:var(--ai-color); border:none; border-radius:6px; color:var(--bg); cursor:pointer; font-size:13px; font-family:var(--font-main); font-weight:bold; }
+.sa-send-btn:hover { background:#3ee8a0; }
+
+@media (max-width:768px) {
+  #journey-diary-panel { width:100vw; }
+  #sa-panel { width:calc(100vw - 48px); right:12px; bottom:80px; }
+  #sa-fab { bottom:16px; right:16px; width:42px; height:42px; font-size:18px; }
+}
+
+/* Character Bio Modal — Canvas Relation Graph */
+  #char-bio-modal .modal-card { width: 95vw; max-width: 1200px; height: 80vh; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+  #char-bio-header { display: flex; justify-content: space-between; align-items: center; padding: 0 0 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #char-bio-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 0; flex-shrink: 0; flex-wrap: wrap; }
+  #char-bio-toolbar button { background: var(--card); border: 1px solid var(--border); color: var(--gold); padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: var(--font-main); transition: all .2s; white-space: nowrap; }
+  #char-bio-toolbar button:hover { background: #2a2818; border-color: var(--gold); }
+  #char-bio-toolbar button.active { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+  #char-bio-toolbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+  #char-bio-toolbar .zoom-label { color: var(--text-dim); font-size: 11px; min-width: 36px; text-align: center; }
+  #char-bio-body { display: flex; flex: 1; overflow: hidden; position: relative; }
+  /* 左侧人物列表 */
+  #char-list-panel { width: 200px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--panel-bg); }
+  #char-list-panel .clp-header { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--gold); display: flex; justify-content: space-between; align-items: center; }
+  #char-list-panel .clp-search { margin: 6px 8px; padding: 5px 8px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-size: 12px; }
+  #char-list-panel .clp-search:focus { outline: none; border-color: var(--gold); }
+  #char-list-items { flex: 1; overflow-y: auto; padding: 4px; }
+  .clp-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; margin: 3px 0; border-radius: 6px; cursor: pointer; transition: background .15s, border-color .15s; border: 1px solid transparent; min-height: 50px; }
+  .clp-item:hover { background: var(--card); }
+  .clp-item.active { background: #2a2818; border-color: var(--gold); }
+  .clp-item .clp-avatar { width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; overflow: hidden; background: var(--card); display: flex; align-items: center; justify-content: center; border:1px solid var(--border-light); }
+  .clp-item .clp-avatar svg, .clp-item .clp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .clp-item .clp-info { flex: 1; min-width: 0; }
+  .clp-item .clp-name { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .clp-item .clp-role { font-size: 10px; color: var(--text-dim); }
+  .clp-item .clp-pin { font-size: 10px; color: var(--gold); }
+  #char-canvas-wrap { flex: 1; position: relative; background: radial-gradient(circle at 50% 30%, rgba(201,168,76,.025), transparent 34%), var(--bg); min-height: 420px; }
+  #char-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+  #char-canvas-hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); color: var(--text-dim); font-size: 11px; background: rgba(0,0,0,0.6); padding: 5px 14px; border-radius: 16px; pointer-events: none; z-index: 5; transition: opacity .5s; }
+  /* Side edit panel */
+  #char-edit-panel { position: absolute; right: -400px; top: 0; bottom: 0; width: 380px; z-index: 20; background: linear-gradient(180deg, rgba(13,13,10,.99), rgba(8,8,6,.99)); border-left: 1px solid var(--border); transition: right .3s ease; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; box-shadow: -12px 0 36px rgba(0,0,0,.24); }
+  #char-edit-panel.open { right: 0; }
+  /* 人物关系图 — 右侧面板内嵌画布 */
+  #char-panel-canvas-wrap canvas { display:block;width:100%;height:100%; }
+  #char-edit-panel h4 { color: var(--gold); font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 0; }
+  #char-edit-panel label { color: var(--text-dim); font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+  #char-edit-panel input, #char-edit-panel textarea, #char-edit-panel select { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 3px; font-family: var(--font-main); font-size: 13px; resize: vertical; }
+  #char-edit-panel textarea { min-height: 50px; }
+  #char-edit-panel input:focus, #char-edit-panel textarea:focus, #char-edit-panel select:focus { border-color: var(--gold); outline: none; }
+  .char-ep-btns { display: flex; gap: 8px; }
+  .char-ep-btns button { flex: 1; padding: 8px; border-radius: 4px; cursor: pointer; font-family: var(--font-main); font-size: 13px; }
+  .char-ep-save { background: var(--gold); color: var(--bg); border: none; }
+  .char-ep-save:hover { background: var(--gold-light); }
+  .char-ep-cancel { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .char-ep-cancel:hover { border-color: var(--text-dim); }
+  .char-ep-del { background: transparent; color: var(--danger); border: 1px solid #3a1818; padding: 8px; border-radius: 4px; cursor: pointer; width: 100%; font-family: var(--font-main); font-size: 13px; }
+  .char-ep-del:hover { background: #2a1515; }
+  /* 贴图预览区 */
+  #cep-portrait-preview { width: 100%; aspect-ratio: 2 / 3; max-height: 260px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #cep-portrait-preview svg, #cep-portrait-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .char-ep-portrait-btns { display: flex; gap: 6px; }
+  .char-ep-portrait-btns button { flex: 1; padding: 6px; border-radius: 4px; cursor: pointer; font-family: var(--font-main); font-size: 12px; background: var(--card); border: 1px solid var(--border); color: var(--gold); }
+  .char-ep-portrait-btns button:hover { border-color: var(--gold); }
+  /* 注释 tooltip 带贴图 */
+  .glow-annotation.has-portrait::after { width: 180px; white-space: normal; padding: 8px; }
+  .glow-annotation.has-portrait::before { content: ''; position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); width: 80px; height: 80px; background: var(--card); border: 1px solid var(--gold); border-radius: 4px; opacity: 0; pointer-events: none; transition: opacity .18s; z-index: 99; }
+  .anno-portrait-popup { position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%); width: 100px; height: 100px; background: var(--card); border: 1px solid var(--gold); border-radius: 4px; opacity: 0; pointer-events: none; transition: opacity .18s; z-index: 99; overflow: hidden; }
+  .anno-portrait-popup svg, .anno-portrait-popup img { width: 100%; height: 100%; object-fit: cover; }
+  .glow-annotation:hover .anno-portrait-popup { opacity: 1; }
+
+  /* Plot Plan Modal */
+  #plot-plan-modal .modal-card { width: 700px; max-width: 95vw; max-height: 85vh; }
+  #plot-plan-body { overflow-y: auto; }
+  .plot-plan-section { margin-bottom: 18px; }
+  .plot-plan-section label { display: block; font-size: 13px; color: var(--gold); margin-bottom: 5px; letter-spacing: 1px; }
+  .plot-plan-section .label-hint { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+  .plot-plan-section input, .plot-plan-section textarea { width: 100%; padding: 8px 10px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 13px; font-family: var(--font-main); }
+  .plot-plan-section input:focus, .plot-plan-section textarea:focus { outline: none; border-color: var(--gold); }
+  .plot-plan-section textarea { resize: vertical; min-height: 50px; }
+  .phase-list { display: flex; flex-direction: column; gap: 8px; }
+  .phase-item { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+  .phase-item.active { border-color: var(--gold); background: #121210; }
+  .phase-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .phase-row input { flex: 1; min-width: 80px; padding: 6px 8px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-size: 12px; font-family: var(--font-main); }
+  .phase-row input:focus { outline: none; border-color: var(--gold); }
+  .phase-row .phase-pct { width: 60px; text-align: center; }
+  .phase-row .phase-budget { width: 80px; text-align: right; color: var(--text-dim); }
+  .phase-row .phase-del { color: var(--danger); cursor: pointer; font-size: 14px; padding: 0 6px; background: none; border: none; }
+  .phase-row .phase-del:hover { opacity: 0.8; }
+  .phase-progress { margin-top: 6px; }
+  .phase-progress .phase-progress-text { font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
+  .phase-progress .phase-progress-bar { height: 6px; background: #080807; border-radius: 3px; overflow: hidden; }
+  .phase-progress .phase-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--gold-dark), var(--gold-light)); transition: width 0.5s; }
+  .phase-progress .phase-progress-fill.over { background: linear-gradient(90deg, var(--gold), var(--danger)); }
+  .btn-add-phase { width: 100%; padding: 8px; border: 1px dashed var(--border); border-radius: 4px; background: transparent; color: var(--text-dim); cursor: pointer; font-size: 13px; font-family: var(--font-main); transition: all .2s; margin-top: 4px; }
+  .btn-add-phase:hover { border-color: var(--gold); color: var(--gold-light); }
+  .plot-summary { margin-top: 12px; padding: 10px 14px; background: var(--card); border-radius: 6px; font-size: 13px; }
+  .plot-summary .sum-line { display: flex; justify-content: space-between; padding: 3px 0; }
+  .plot-summary .sum-label { color: var(--text-dim); }
+  .plot-summary .sum-value { color: var(--gold-light); font-weight: bold; }
+
+  /* Style Memory */
+  #style-memory-section { padding: 8px 16px; border-top: 1px solid var(--border); }
+  #style-memory-section .sm-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  #style-memory-section .sm-header h4 { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; }
+  #style-memory-section .sm-status { font-size: 11px; color: var(--text-dim); }
+  #style-memory-section .sm-status.active { color: var(--ai-color); }
+  #style-memory-section .sm-preview { font-size: 11px; color: var(--text-dim); max-height: 60px; overflow: hidden; cursor: pointer; line-height: 1.4; margin-top: 4px; }
+  #style-memory-section .sm-preview:hover { color: var(--text); }
+  #style-memory-modal textarea { width: 100%; min-height: 200px; padding: 10px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 13px; font-family: var(--font-main); resize: vertical; }
+  #style-memory-modal textarea:focus { outline: none; border-color: var(--gold); }
+
+  /* Character Picker */
+  #char-picker-section { margin: 16px 0; }
+  #char-picker-section h4 { font-size: 14px; color: var(--gold); margin-bottom: 4px; letter-spacing: 1px; }
+  #char-picker-section .cp-hint { font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
+  .char-picker-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .char-pick-card { flex: 1; min-width: 160px; max-width: 240px; padding: 12px; border: 2px solid var(--border); border-radius: 8px; background: var(--card); cursor: pointer; transition: all .25s; text-align: center; }
+  .char-pick-card:hover { border-color: var(--gold); background: var(--card-hover); transform: translateY(-2px); }
+  .char-pick-card.selected { border-color: var(--gold); background: linear-gradient(135deg, #1a1208, #2a1a0e); box-shadow: 0 0 20px rgba(201,168,76,.2); }
+  .char-pick-card .cp-icon { font-size: 28px; margin-bottom: 4px; }
+  .char-pick-card .cp-name { font-size: 14px; font-weight: bold; color: var(--text-bright); }
+  .char-pick-card .cp-role { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .char-pick-card .cp-tag { display: inline-block; padding: 2px 8px; margin-top: 4px; border-radius: 8px; font-size: 10px; background: var(--border); color: var(--text-dim); }
+  .char-pick-card.selected .cp-tag { background: rgba(201,168,76,.15); color: var(--gold-light); }
+
+  /* Annotation glow */
+  .glow-annotation {
+    color: var(--gold-light);
+    text-shadow: 0 0 6px rgba(201,168,76,.5), 0 0 16px rgba(201,168,76,.2);
+    cursor: help; border-bottom: 1px dashed rgba(201,168,76,.4); position: relative;
+  }
+  .glow-annotation:hover { text-shadow: 0 0 10px rgba(201,168,76,.75), 0 0 24px rgba(201,168,76,.35); }
+  .glow-annotation::after {
+    content: attr(data-desc); position: absolute; bottom: 120%; left: 50%;
+    transform: translateX(-50%); padding: 5px 10px; background: var(--card);
+    color: var(--text); border: 1px solid var(--gold); border-radius: 4px;
+    white-space: nowrap; font-size: 12px; z-index: 100;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .18s;
+  }
+  .glow-annotation:hover::after { opacity: 1; }
+
+  /* Continue banner */
+  #continue-banner { margin: 0 0 10px; padding: 14px 18px; background: var(--card); border: 1px solid var(--gold); border-radius: 8px; text-align: center; cursor: pointer; transition: all .2s; }
+
+  /* Media extract step dots */
+  .media-step-dot.active { background: var(--gold) !important; color: var(--bg) !important; }
+
+  /* ====== WORLD BUILDER MODAL ====== */
+  #world-builder-modal .modal-card { width: 88vw; max-width: 1100px; max-height: 85vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+  #wb-header { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
+  #wb-header .wb-tabs { display: flex; gap: 2px; margin-right: 12px; }
+  #wb-header .wb-tab { padding: 7px 16px; background: transparent; border: 1px solid transparent; color: var(--text-dim); cursor: pointer; font-size: 13px; font-family: var(--font-main); border-radius: 4px; transition: all 0.2s; }
+  #wb-header .wb-tab:hover { color: var(--gold); }
+  #wb-header .wb-tab.active { background: var(--card-hover); border-color: var(--gold); color: var(--gold); }
+  #wb-header .wb-genre { background: var(--input-bg); border: 1px solid var(--border); color: var(--gold); padding: 5px 10px; border-radius: 3px; font-size: 12px; width: 90px; font-family: var(--font-main); }
+  #wb-header .wb-genre:focus { border-color: var(--gold); outline: none; }
+  #wb-header .wb-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+  #wb-header .wb-close { margin-left: auto; }
+  #wb-body { flex: 1; display: flex; overflow: hidden; }
+  #wb-list { width: 240px; min-width: 200px; background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; }
+  #wb-list .wb-item { padding: 9px 12px; border-radius: 4px; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+  #wb-list .wb-item:hover { background: var(--card-hover); border-color: var(--border); }
+  #wb-list .wb-item.selected { background: var(--card-hover); border-color: var(--gold-dim); }
+  #wb-list .wb-item .wb-name { color: var(--gold); font-size: 13px; }
+  #wb-list .wb-item .wb-sub { color: var(--text-dim); font-size: 11px; margin-top: 1px; }
+  #wb-list .wb-empty { color: var(--text-dim); text-align: center; padding: 40px 20px; font-size: 13px; line-height: 1.8; }
+  #wb-detail { flex: 1; overflow-y: auto; padding: 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+  #wb-detail h2 { color: var(--gold); font-size: 17px; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 6px; }
+  #wb-detail .wb-field { display: flex; flex-direction: column; gap: 2px; }
+  #wb-detail .wb-field label { color: var(--text-dim); font-size: 11px; display: flex; align-items: center; gap: 8px; }
+  #wb-detail .wb-field label .wb-ai-btn { font-size: 10px; color: var(--gold-dim); cursor: pointer; opacity: 0; transition: opacity 0.2s; background: none; border: 1px solid var(--gold-dim); border-radius: 3px; padding: 1px 6px; font-family: var(--font-main); }
+  #wb-detail .wb-field:hover label .wb-ai-btn { opacity: 1; }
+  #wb-detail .wb-field label .wb-ai-btn:hover { color: var(--gold); border-color: var(--gold); }
+  #wb-detail .wb-field label .wb-ai-btn.loading { opacity: 1; animation: pulse 1s infinite; }
+  #wb-detail .wb-field input, #wb-detail .wb-field textarea { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 3px; font-family: var(--font-main); font-size: 13px; }
+  #wb-detail .wb-field textarea { min-height: 45px; resize: vertical; }
+  #wb-detail .wb-field input:focus, #wb-detail .wb-field textarea:focus { border-color: var(--gold); outline: none; }
+  #wb-detail .wb-actions { display: flex; gap: 8px; margin-top: 10px; }
+  #wb-detail .wb-actions .wb-btn-save { background: var(--gold); color: var(--bg); border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: var(--font-main); font-size: 13px; flex: 1; }
+  #wb-detail .wb-actions .wb-btn-save:hover { background: var(--gold-light); }
+  #wb-detail .wb-actions .wb-btn-delete { background: transparent; color: var(--danger); border: 1px solid #3a1818; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: var(--font-main); font-size: 13px; }
+  #wb-detail .wb-actions .wb-btn-delete:hover { background: #2a1515; }
+  #wb-detail .wb-hint { color: var(--text-dim); text-align: center; padding: 60px 20px; font-size: 13px; line-height: 1.8; }
+
+/* ═════ HELLO / SPLASH SCREEN ═════ */
+#hello-screen {
+  position:fixed;inset:0;z-index:9999;
+  background:#05050c;
+  display:flex;align-items:center;justify-content:center;
+  user-select:none;
+  transition:opacity .8s ease, visibility .8s ease;
+}
+#hello-screen.hs-exit { opacity:0;visibility:hidden;pointer-events:none }
+#hello-screen.hs-exit .hs-content { transform:scale(.3);opacity:0 }
+
+/* 背景金箔反光 */
+.hs-sheen, .hs-sheen2, #hs-ghosts, #hs-lines, .hs-halo, .hs-liuma,
+.hs-g, .hs-nt, .hs-nodglow, .hs-nodhover, .hs-node2, .ldp {
+  pointer-events: none !important;
+}
+.hs-sheen{
+  position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(145deg,transparent 35%,rgba(201,168,76,.012) 40%,rgba(240,216,138,.035) 42%,rgba(201,168,76,.012) 44%,transparent 50%);
+}
+.hs-sheen2{
+  position:absolute;bottom:0;right:0;width:70%;height:80%;pointer-events:none;
+  background:radial-gradient(ellipse at 70% 80%,rgba(201,168,76,.025) 0%,transparent 60%);
+}
+
+/* 背后金属渐变文字 */
+#hs-ghosts{position:absolute;inset:0;z-index:1}
+.hs-g{
+  position:absolute;font-size:var(--fs);font-weight:900;letter-spacing:.15em;
+  background:linear-gradient(150deg,rgba(201,168,76,.02) 0%,rgba(240,216,138,.08) 20%,rgba(226,201,126,.12) 40%,rgba(201,168,76,.06) 60%,rgba(139,105,20,.02) 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  animation:hsGBreathe var(--d) var(--delay) ease-in-out infinite;
+  filter:blur(.8px);
+}
+@keyframes hsGBreathe{0%,100%{opacity:.015} 25%{opacity:.06} 50%{opacity:.025} 75%{opacity:.05}}
+
+/* 金线 */
+#hs-lines{position:absolute;inset:0;z-index:2}
+.hs-fl{fill:none;stroke-linecap:round;pointer-events:none;animation:hsFlAnim var(--t) var(--d2) ease-in-out infinite;stroke-dasharray:var(--len);}
+@keyframes hsFlAnim{0%{stroke-dashoffset:var(--len)} 20%{stroke-dashoffset:0} 80%{stroke-dashoffset:0} 100%{stroke-dashoffset:calc(var(--len)*-1)}}
+.hs-node{animation:hsNodePulse var(--np) ease-in-out infinite;filter:drop-shadow(0 0 6px rgba(240,216,138,.5));cursor:pointer;transition:r .5s,filter .6s;}
+@keyframes hsNodePulse{0%,100%{opacity:.4;r:2} 50%{opacity:.9;r:3}}
+.hs-nodglow{pointer-events:none;transition:opacity .6s,r .5s}
+.hs-nodhover{animation:none;opacity:.85;filter:drop-shadow(0 0 20px rgba(240,216,138,.95)) drop-shadow(0 0 45px rgba(240,216,138,.45))}
+/* 二级端点（星星点缀） */
+.hs-node2{
+  cursor:pointer;
+  filter:drop-shadow(0 0 3px rgba(226,201,126,.4));
+  transition:r .5s cubic-bezier(.25,.1,.25,1), filter .6s;
+}
+.hs-nt{font-size:11px;letter-spacing:1px;font-weight:400;animation:hsNtFade var(--ntt) var(--ntd) ease-in-out infinite;pointer-events:none;}
+@keyframes hsNtFade{0%,100%{opacity:.15} 50%{opacity:.4}}
+
+/* 中心光晕 */
+.hs-halo{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:50vmin;height:50vmin;
+  background:radial-gradient(circle,rgba(201,168,76,.045) 0%,transparent 60%);
+  pointer-events:none;z-index:3;animation:hshBreathe 8s ease-in-out infinite;
+}
+@keyframes hshBreathe{0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(.85)} 50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}}
+
+/* 四角标签 */
+.hs-corner{position:absolute;z-index:8;pointer-events:none;font-size:11px;letter-spacing:1px;color:rgba(255,255,255,.06)}
+.hs-corner.tl{top:clamp(16px,3vmin,28px);left:clamp(20px,4vmin,36px)}
+.hs-corner.tr{top:clamp(16px,3vmin,28px);right:clamp(20px,4vmin,36px);text-align:right}
+.hs-corner.bl{bottom:clamp(16px,3vmin,28px);left:clamp(20px,4vmin,36px)}
+.hs-corner.br{bottom:clamp(16px,3vmin,28px);right:clamp(20px,4vmin,36px);text-align:right}
+.hs-corner .cv{display:block;font-size:18px;font-weight:700;color:rgba(201,168,76,.12);letter-spacing:.05em;margin-bottom:2px}
+.hs-corner .cl{display:block;font-size:9px;color:rgba(255,255,255,.05);letter-spacing:2px}
+
+/* 流麻 */
+.hs-liuma{position:absolute;bottom:0;left:0;right:0;height:28vh;z-index:4;pointer-events:none;overflow:hidden}
+.hs-liuma .lb{position:absolute;left:-10%;right:-10%;height:1px;bottom:var(--bt);background:linear-gradient(90deg,transparent,#e2c97e 20%,#f0d88a 50%,#e2c97e 80%,transparent);opacity:var(--op);animation:hsLbSh var(--t) ease-in-out infinite;filter:blur(var(--bl))}
+@keyframes hsLbSh{0%,100%{transform:translateX(-2%) scaleX(1)}50%{transform:translateX(2%) scaleX(1.04)}}
+.hs-liuma .lb-glow{position:absolute;bottom:0;left:-10%;right:-10%;height:5px;background:linear-gradient(90deg,transparent,rgba(240,216,138,.05) 20%,rgba(201,168,76,.08) 50%,rgba(240,216,138,.05) 80%,transparent);filter:blur(4px);animation:hsLbSh 12s ease-in-out infinite reverse}
+.hs-liuma .ldp{position:absolute;border-radius:50%;background:#f0d88a;box-shadow:0 0 3px #e2c97e;animation:hsLdA var(--d) var(--delay) ease-in-out infinite;opacity:0}
+@keyframes hsLdA{0%,100%{opacity:0;transform:translate(0,0) scale(.15)} 12%{opacity:var(--o)} 78%{opacity:var(--o)} 100%{opacity:0;transform:translate(var(--dx),calc(var(--dy))) scale(.7)}}
+
+/* 中心内容 */
+.hs-content{position:relative;z-index:10;text-align:center}
+.hs-title{
+  font-size:clamp(52px,10vw,100px);font-weight:900;letter-spacing:.15em;line-height:1;
+  background:linear-gradient(180deg,#ffeec0 0%,#f0d88a 18%,#e2c97e 38%,#c9a84c 55%,#a07828 75%,#8b6914 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 2px 20px rgba(201,168,76,.18));
+  margin-bottom:clamp(6px,1vmin,10px);
+}
+.hs-sub{font-size:clamp(12px,1.6vw,16px);color:rgba(255,255,255,.16);letter-spacing:.35em;font-weight:300;margin-bottom:clamp(4px,.8vmin,6px)}
+.hs-line{width:36px;height:1px;margin:0 auto clamp(14px,3vmin,22px);background:linear-gradient(90deg,transparent,#e2c97e,transparent);opacity:.12}
+.hs-tag{font-size:clamp(10px,1.2vw,13px);color:rgba(255,255,255,.07);letter-spacing:.4em;font-weight:300;margin-bottom:clamp(32px,6vmin,48px)}
+
+/* ══ 黑洞按钮 ══ */
+#hs-enter-btn{
+  position:relative;width:72px;height:72px;border:none;background:transparent;
+  cursor:pointer;outline:none;margin:0 auto;display:block;
+  transition:transform .4s cubic-bezier(.25,.1,.25,1), filter .4s;
+  pointer-events:auto!important; /* 穿透上层透明元素（幽灵文字、流光等） */
+}
+#hs-enter-btn:hover{transform:scale(1.18);filter:drop-shadow(0 0 24px rgba(180,140,60,.3)) drop-shadow(0 0 48px rgba(40,30,10,.4))}
+#hs-enter-btn:active{transform:scale(.95)}
+
+/* 吸积盘（外环旋转） */
+.bh-accretion{
+  position:absolute;inset:-14px;border-radius:50%;
+  border:1.5px solid transparent;
+  border-top-color:rgba(201,168,76,.45);
+  border-right-color:rgba(240,216,138,.25);
+  border-bottom-color:rgba(139,105,20,.15);
+  animation:bhSpinCCW 4s linear infinite;
+  mask:radial-gradient(farthest-side,transparent 55%,black 70%);
+  -webkit-mask:radial-gradient(farthest-side,transparent 55%,black 70%);
+}
+.bh-accretion::after{
+  content:'';position:absolute;inset:-4px;border-radius:50%;
+  border:1px solid rgba(201,168,76,.15);
+  border-top-color:rgba(240,216,138,.3);
+  animation:bhSpinCW 7s linear infinite reverse;
+  mask:radial-gradient(farthest-side,transparent 62%,black 75%);
+  -webkit-mask:radial-gradient(farthest-side,transparent 62%,black 75%);
+}
+@keyframes bhSpinCCW{to{transform:rotate(-360deg)}}
+@keyframes bhSpinCW{to{transform:rotate(360deg)}}
+
+/* 引力透镜环 */
+.bh-ring{
+  position:absolute;border-radius:50%;border:1px solid transparent;
+  pointer-events:none;
+}
+.bh-ring-1{inset:-2px;border-color:rgba(201,168,76,.25);animation:bhRingPulse 3s ease-in-out infinite}
+.bh-ring-2{inset:-7px;border-color:rgba(201,168,76,.12);animation:bhRingPulse 3s ease-in-out infinite .6s}
+.bh-ring-3{inset:-13px;border-color:rgba(201,168,76,.06);animation:bhRingPulse 3s ease-in-out infinite 1.2s}
+@keyframes bhRingPulse{0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:.9;transform:scale(1.04)}}
+
+/* 事件视界（核心黑洞） */
+.bh-core{
+  position:absolute;inset:18px;border-radius:50%;
+  background:radial-gradient(circle at 45% 35%, #1a1510 0%, #0a0806 40%, #000 80%);
+  box-shadow:
+    inset 0 0 12px rgba(0,0,0,.9),
+    inset 0 0 24px rgba(0,0,0,.7),
+    0 0 8px rgba(0,0,0,.8),
+    0 0 28px rgba(10,6,4,.5);
+  z-index:2;
+}
+
+/* 光子球（内环亮边） */
+.bh-lens{
+  position:absolute;inset:17px;border-radius:50%;
+  border:1px solid rgba(240,220,170,.18);
+  box-shadow:0 0 6px rgba(200,160,80,.1) inset, 0 0 12px rgba(200,160,80,.05);
+  z-index:3;pointer-events:none;
+  animation:bhLensGlow 4s ease-in-out infinite;
+}
+@keyframes bhLensGlow{0%,100%{box-shadow:0 0 6px rgba(240,220,170,.15) inset,0 0 12px rgba(200,160,80,.07)} 50%{box-shadow:0 0 10px rgba(240,220,130,.25) inset,0 0 20px rgba(200,160,80,.12)}}
+
+/* 穿越提示文字 */
+.hs-hint{
+  margin-top:16px;font-size:11px;letter-spacing:4px;color:rgba(201,168,76,.2);
+  animation:hsHintFade 3s ease-in-out infinite;
+}
+@keyframes hsHintFade{0%,100%{opacity:.2} 50%{opacity:.5}}
+/* 页底文字 */
+.hs-footer{
+  position:absolute;bottom:clamp(20px,3.5vh,36px);left:0;right:0;
+  text-align:center;font-size:10px;letter-spacing:6px;
+  color:rgba(201,168,76,.1);font-weight:300;z-index:10;
+  pointer-events:none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   V5.0 VISUAL REFINEMENT — 保留暗金命运书卷风格，提升清晰度与交互
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #080806;
+  --panel: #0e0e0b;
+  --panel-bg: #0e0e0b;
+  --card: #151511;
+  --card-hover: #1c1b15;
+  --border: #2b2921;
+  --border-light: rgba(231,197,105,.15);
+  --gold: #d8b85d;
+  --gold-light: #f0d58a;
+  --gold-pale: #ffedba;
+  --gold-dark: #9c7925;
+  --gold-dim: rgba(216,184,93,.38);
+  --text: #d0c9ba;
+  --text-dim: #8f8a80;
+  --text-bright: #f4efe5;
+  --danger: #ef7474;
+  --success: #65c794;
+  --ai-color: #72dfb1;
+  --shadow-sm: 0 4px 14px rgba(0,0,0,.28);
+  --shadow-md: 0 14px 40px rgba(0,0,0,.42);
+  --focus-ring: 0 0 0 3px rgba(216,184,93,.15);
+  --radius-sm: 7px;
+  --radius-md: 11px;
+  --radius-lg: 16px;
+}
+html { font-size: 16px; }
+body {
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% -10%, rgba(216,184,93,.055), transparent 28%),
+    radial-gradient(circle at 88% 110%, rgba(216,184,93,.035), transparent 30%),
+    var(--bg);
+  letter-spacing: .015em;
+}
+button, input, textarea, select { font: inherit; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: none !important; box-shadow: var(--focus-ring) !important; border-color: var(--gold) !important;
+}
+::selection { background: rgba(216,184,93,.3); color: #fff8e7; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,.018); }
+::-webkit-scrollbar-thumb { background: #39352a; border: 2px solid transparent; background-clip: padding-box; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #66583a; border: 2px solid transparent; background-clip: padding-box; }
+
+/* 顶栏：分区清晰、触控面积一致、允许换行而不挤压 */
+#topbar {
+  min-height: 60px; padding: 9px 16px; gap: 7px; flex-wrap: wrap;
+  background: linear-gradient(180deg, rgba(20,19,15,.985), rgba(11,11,9,.985));
+  border-bottom-color: rgba(216,184,93,.2); box-shadow: 0 8px 30px rgba(0,0,0,.22);
+}
+#topbar .title { font-size: 21px; line-height: 1; white-space: nowrap; filter: drop-shadow(0 2px 8px rgba(216,184,93,.12)); }
+#topbar .subtitle { color: #9e988c; font-size: 12px; white-space: nowrap; }
+#topbar > span[style*="font-size:11px"] { color: #a39d91 !important; }
+.btn, #topbar-theme-btn {
+  min-height: 34px; padding: 7px 11px; border-radius: var(--radius-sm);
+  border-color: #373329; background: linear-gradient(180deg,#191813,#12120f);
+  color: #cfc8b8; font-size: 12px; font-weight: 560; line-height: 1.1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+  transition: transform .14s ease, border-color .16s ease, color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.btn:hover, #topbar-theme-btn:hover { transform: translateY(-1px); color: #fff1c3; border-color: rgba(216,184,93,.65); background: linear-gradient(180deg,#242117,#191711); box-shadow: 0 7px 18px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.04); }
+.btn:active, #topbar-theme-btn:active { transform: translateY(0) scale(.975); box-shadow: inset 0 2px 5px rgba(0,0,0,.35); }
+.btn.sm { min-width: 34px; padding-inline: 8px; }
+.btn.ai { border-color: rgba(114,223,177,.38); color: #92e9c3; background: linear-gradient(180deg,rgba(22,45,36,.8),rgba(12,27,22,.8)); }
+.btn.ai:hover { border-color: var(--ai-color); box-shadow: 0 0 18px rgba(114,223,177,.12); }
+.btn.foreshadow { border-color: rgba(190,151,231,.42); color: #d5b8f0; }
+.btn.foreshadow.active { color: #f1ddff; border-color: #b88ce0; background: linear-gradient(180deg,#2b1e37,#1a1222); box-shadow: 0 0 18px rgba(184,140,224,.18); }
+#topbar-theme-btn { color: var(--gold-light); }
+
+/* 主内容：正文更像阅读器，层级与间距更稳定 */
+#main { background: linear-gradient(90deg, rgba(255,255,255,.008), transparent 55%); }
+#story-panel { border-right-color: rgba(216,184,93,.16); min-width: 0; }
+#story-header {
+  min-height: 52px; padding: 11px 24px;
+  background: linear-gradient(180deg,rgba(21,20,16,.92),rgba(13,13,10,.9));
+  border-bottom: 1px solid rgba(216,184,93,.14);
+}
+#story-header .chapter, #chapter-label { font-size: 16px; color: var(--gold-light); font-weight: 700; letter-spacing: .12em; }
+#story-header .scene, #scene-label { color: #aaa397; font-size: 12px; }
+#story-content {
+  padding: clamp(24px,3vw,42px) clamp(28px,5vw,76px) 52px;
+  font-size: 16px; line-height: 2.02; color: #d7d0c1;
+  text-shadow: 0 1px 0 rgba(0,0,0,.25); scroll-padding-bottom: 30px;
+}
+#story-content > div, #story-content > p { max-width: 920px; margin-left: auto; margin-right: auto; }
+#story-content p { margin: 0 0 1.05em; }
+#story-content .narrator { color: #aaa397; }
+#story-content .dialogue { color: #f0d79a; border-left-color: rgba(216,184,93,.65); background: linear-gradient(90deg,rgba(216,184,93,.045),transparent); padding: 5px 10px 5px 15px; border-radius: 0 7px 7px 0; }
+#story-content .action { color: #fff0bd; }
+#story-content .thought { color: #c9a7dc; }
+#story-content .system { color: #ef9b82; background: rgba(239,116,116,.055); padding: 7px 10px; border-radius: 7px; }
+#story-content .separator { border-top-color: rgba(216,184,93,.18); margin: 24px auto; }
+
+/* 选择区：卡片化、推荐和风险状态更易辨认 */
+#choice-bar { padding: 17px 22px 20px; background: linear-gradient(180deg,rgba(12,12,9,.96),rgba(17,16,12,.99)); border-top: 1px solid rgba(216,184,93,.22); box-shadow: 0 -14px 35px rgba(0,0,0,.22); }
+#choice-bar .choice-hint { font-size: 13px; font-weight: 700; color: #ead083; margin-bottom: 12px; }
+#choices-container { gap: 10px; }
+.choice-btn {
+  min-height: 50px; padding: 13px 15px; border-radius: 10px; border-color: #3a362b;
+  background: linear-gradient(160deg,rgba(28,27,21,.95),rgba(18,18,14,.95));
+  color: #d9d2c4; font-size: 13px; line-height: 1.55; text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+}
+.choice-btn:hover { transform: translateY(-2px); color: #fff0bf; border-color: #c3a34e; box-shadow: 0 10px 24px rgba(0,0,0,.28),0 0 0 1px rgba(216,184,93,.08); }
+.choice-btn:active { transform: translateY(0) scale(.987); }
+.choice-btn .choice-num { background: #282318; color: #f0d58a; border: 1px solid rgba(216,184,93,.24); }
+.choice-btn.recommended { border-color: rgba(216,184,93,.72); background: linear-gradient(160deg,rgba(44,36,17,.82),rgba(22,20,13,.97)); }
+.choice-btn.recommended::after { background: rgba(216,184,93,.12); padding: 2px 6px; border-radius: 99px; }
+#custom-choice { gap: 9px; margin-top: 12px; }
+#custom-choice input { min-height: 42px; }
+#custom-choice button { min-width: 76px; border-radius: 8px; font-weight: 700; }
+
+/* 状态侧栏：增强可读性，减少灰成一片 */
+#status-panel { width: 340px; background: linear-gradient(180deg,#11110e,#0c0c0a); box-shadow: -12px 0 28px rgba(0,0,0,.12); }
+#status-panel h3 { padding: 16px 17px 13px; font-size: 15px; color: #efd486; letter-spacing: .14em; background: rgba(255,255,255,.012); }
+.stat-section { padding: 12px 17px; }
+.stat-section h4 { color: #b8a264; font-size: 12px; margin-bottom: 9px; letter-spacing: .09em; }
+.stat-section h4:hover { color: var(--gold-light); }
+.stat-row { min-height: 29px; padding: 5px 0; font-size: 12.5px; border-bottom: 1px dashed rgba(255,255,255,.035); }
+.stat-row:last-child { border-bottom: 0; }
+.stat-label { color: #999388; }
+.stat-value { color: #e1dacb; font-size: 12px; }
+#status-panel .btn { min-height: 32px; }
+#sm-status { color: #9d978c; }
+#sm-status.active { color: var(--success); }
+.sm-preview { color: #bcb5a8 !important; background: rgba(255,255,255,.025) !important; border: 1px solid rgba(216,184,93,.1); border-radius: 8px; padding: 9px !important; line-height: 1.55; }
+#foreshadow-panel-list { max-height: 220px; }
+.fs-item { background: rgba(255,255,255,.02) !important; border:1px solid rgba(190,151,231,.18) !important; border-radius: 9px !important; padding:9px !important; margin-bottom:7px !important; display:flex; gap:8px; }
+.fs-body { flex:1; min-width:0; } .fs-desc { color:#d9cfe1; font-size:12px; line-height:1.5; white-space:normal !important; } .fs-meta { color:#817a84; font-size:10px; margin-top:3px; }
+.fs-actions { display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; } .fs-btn { min-height:26px; padding:4px 8px; border:1px solid #453b4d; border-radius:6px; background:#19151d; color:#c9b7d6; cursor:pointer; font-size:10px; } .fs-btn:hover { border-color:#b88ce0; color:#f0ddff; } .fs-use { border-color:#9b7434; color:#ebcb83; } .fs-use.active { background:#3a2b13; border-color:#e0b75c; color:#fff0b5; } .fs-delete { color:#d98383; border-color:#5a3333; }
+
+/* 表单：统一高度、颜色、提示和禁用状态 */
+input[type="text"], input[type="number"], input[type="password"], textarea, select {
+  color: #e6dfd0 !important; background: #0d0d0b !important; border: 1px solid #373329 !important;
+  border-radius: 8px !important; padding: 10px 12px !important; font-size: 13px !important;
+  caret-color: var(--gold-light); transition: border-color .16s, box-shadow .16s, background .16s;
+}
+input[type="text"], input[type="number"], input[type="password"], select { min-height: 40px; }
+textarea { line-height: 1.65; resize: vertical; }
+input:hover, textarea:hover, select:hover { border-color: #59513d !important; }
+input:focus, textarea:focus, select:focus { background: #11110e !important; border-color: var(--gold) !important; box-shadow: var(--focus-ring) !important; outline: none; }
+input::placeholder, textarea::placeholder { color: #69665f !important; opacity: 1; }
+input:disabled, textarea:disabled, select:disabled, button:disabled { opacity: .48; cursor: not-allowed; filter: saturate(.5); }
+.setup-group label, .field-label { color: #e0c675 !important; font-weight: 650; }
+.field-hint, .setup-sub { color: #88847c !important; line-height: 1.55; }
+
+/* 弹窗：玻璃暗金卡片、标题与操作区统一 */
+.modal-overlay { background: rgba(3,3,2,.84); backdrop-filter: blur(9px) saturate(.8); padding: 22px; }
+.modal-card {
+  width: min(560px, calc(100vw - 36px)); max-height: min(84vh,820px); padding: 24px;
+  border: 1px solid rgba(216,184,93,.24); border-radius: var(--radius-lg);
+  background: linear-gradient(155deg,rgba(24,23,18,.985),rgba(11,11,9,.99));
+  box-shadow: 0 30px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.035);
+}
+.modal-card h3 { color: #f0d587; font-size: 18px; letter-spacing: .08em; padding-bottom: 12px; border-bottom: 1px solid rgba(216,184,93,.12); }
+.modal-card p { line-height: 1.65; }
+.modal-actions { gap: 9px; margin-top: 18px; }
+.save-slot { border-radius: 9px !important; border-color: #353127 !important; background: rgba(255,255,255,.018) !important; }
+.save-slot:hover { border-color: rgba(216,184,93,.55) !important; background: rgba(216,184,93,.035) !important; }
+
+/* 主菜单与设置流程 */
+#main-menu-card .menu-title { filter: drop-shadow(0 5px 20px rgba(216,184,93,.12)); }
+.menu-btn { border-radius: 11px !important; min-height: 58px; border-color: #343026 !important; background: linear-gradient(155deg,rgba(25,24,19,.9),rgba(13,13,10,.95)) !important; }
+.menu-btn:hover { border-color: rgba(216,184,93,.65) !important; transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.menu-btn .menu-label { color: #ddd5c5 !important; font-size: 14px !important; }
+.menu-btn .menu-hint { color: #827e76 !important; }
+.menu-btn.primary .menu-label { color: #f5d984 !important; }
+#setup-card { border-color: rgba(216,184,93,.25); border-radius: 16px; box-shadow: var(--shadow-md); background: linear-gradient(160deg,#171612,#0d0d0a); }
+.setup-tabs { background: rgba(0,0,0,.12); }
+.setup-tab { min-height: 47px; color: #918c82; }
+.setup-tab.active { color: #f0d483; }
+.genre-btn { border-color: #38342a !important; color: #bbb4a7 !important; border-radius: 8px !important; }
+.genre-btn:hover { border-color: rgba(216,184,93,.65) !important; color: #f0d58a !important; }
+.genre-btn.active { background: linear-gradient(180deg,#342811,#211a0d) !important; color: #ffebad !important; border-color: var(--gold) !important; box-shadow: 0 0 0 1px rgba(216,184,93,.1), 0 6px 18px rgba(0,0,0,.2); }
+
+/* 状态反馈和动画 */
+.toast { border-radius: 10px !important; border: 1px solid rgba(216,184,93,.22) !important; background: rgba(24,23,18,.97) !important; color: #ece4d5 !important; box-shadow: var(--shadow-md) !important; backdrop-filter: blur(8px); }
+.fade-in { animation-duration: .36s !important; }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; } }
+
+/* 窄屏与中等窗口：顶栏保持可用，侧栏不压正文 */
+@media (max-width: 1180px) {
+  #topbar { max-height: 112px; overflow-y: auto; }
+  #topbar .spacer { flex-basis: 20px; }
+  #status-panel { width: 300px; }
+  #story-content { padding-inline: 34px; }
+}
+@media (max-width: 820px) {
+  body { overflow: auto; height: auto; min-height: 100vh; }
+  #topbar { position: sticky; top: 0; max-height: none; padding: 8px 10px; }
+  #topbar .title { font-size: 18px; }
+  #topbar .subtitle, #topbar > span[style*="字号"] { display: none; }
+  #main { flex-direction: column; min-height: calc(100vh - 60px); overflow: visible; }
+  #story-panel { min-height: 70vh; border-right: 0; }
+  #story-content { padding: 22px 18px 36px; font-size: 15px; line-height: 1.92; }
+  #status-panel { width: 100%; max-height: none; border-top: 1px solid rgba(216,184,93,.2); }
+  #choices-container { flex-direction: column; }
+  .choice-btn { min-width: 100%; }
+  .modal-overlay { padding: 10px; align-items: flex-start; overflow-y: auto; }
+  .modal-card { width: 100% !important; max-height: none !important; margin: 12px 0; padding: 19px; }
+  #setup-card { width: calc(100vw - 18px) !important; max-height: none; margin: 9px; }
+  .setup-body { padding: 17px 14px; }
+}
+@media (max-width: 520px) {
+  #topbar .btn, #topbar-theme-btn { min-height: 36px; padding-inline: 9px; }
+  #topbar .title { flex-basis: calc(100% - 70px); }
+  #story-header { padding-inline: 14px; }
+  #custom-choice { flex-direction: column; }
+  #custom-choice button { min-height: 40px; }
+  #main-menu-card { width: calc(100vw - 24px); }
+  .menu-btn { width: 100% !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HELLO / SPLASH SCREEN ═══ -->
+<div id="hello-screen">
+  <!-- 背景金箔反光 -->
+  <div class="hs-sheen"></div>
+  <div class="hs-sheen2"></div>
+  <!-- 背后金属渐变文字 -->
+  <div id="hs-ghosts"></div>
+  <!-- 分支金线 SVG -->
+  <svg id="hs-lines" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <linearGradient id="hsGFade" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#c9a84c" stop-opacity="0"/>
+        <stop offset="20%" stop-color="#e2c97e" stop-opacity=".15"/>
+        <stop offset="45%" stop-color="#f0d88a" stop-opacity=".1"/>
+        <stop offset="70%" stop-color="#c9a84c" stop-opacity=".04"/>
+        <stop offset="100%" stop-color="#c9a84c" stop-opacity="0"/>
+      </linearGradient>
+      <radialGradient id="hsNodeGlow">
+        <stop offset="0%" stop-color="#f0d88a" stop-opacity=".9"/>
+        <stop offset="40%" stop-color="#e2c97e" stop-opacity=".4"/>
+        <stop offset="100%" stop-color="#c9a84c" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+  </svg>
+  <!-- 中心光晕 -->
+  <div class="hs-halo"></div>
+  <!-- 四角信息 -->
+  <div class="hs-corner tl"><span class="cv">V5.0</span><span class="cl">WINDOWS</span></div>
+  <div class="hs-corner tr"><span class="cv">AI</span><span class="cl">OPEN API</span></div>
+  <div class="hs-corner bl"><span class="cv">∞</span><span class="cl">INFINITE WORLDS</span></div>
+  <div class="hs-corner br"><span class="cv">✦</span><span class="cl">YOUR STORY</span></div>
+  <!-- 流麻 -->
+  <div class="hs-liuma">
+    <div class="lb-glow"></div>
+    <div class="lb" style="--bt:3vh;--op:.35;--t:10s;--bl:0px"></div>
+    <div class="lb" style="--bt:6vh;--op:.2;--t:14s;--bl:.5px"></div>
+    <div class="lb" style="--bt:9vh;--op:.12;--t:12s;--bl:1px"></div>
+    <div class="lb" style="--bt:13vh;--op:.06;--t:16s;--bl:1.5px"></div>
+    <div class="lb" style="--bt:18vh;--op:.03;--t:20s;--bl:2px"></div>
+    <div id="hs-ld"></div>
+  </div>
+  <!-- 中心内容 -->
+  <div class="hs-content">
+    <h1 class="hs-title">命运之书</h1>
+    <div class="hs-sub">DESTINY BOOK</div>
+    <div class="hs-line"></div>
+    <div class="hs-tag">你的故事 · 你来写</div>
+    <!-- 黑洞进入按钮 -->
+    <button id="hs-enter-btn" title="点击进入命运">
+      <div class="bh-ring bh-ring-3"></div>
+      <div class="bh-ring bh-ring-2"></div>
+      <div class="bh-ring bh-ring-1"></div>
+      <div class="bh-core"></div>
+      <div class="bh-accretion"></div>
+      <div class="bh-lens"></div>
+    </button>
+    <div class="hs-hint">点击穿越</div>
+    <div class="hs-footer">命运之书 · AI互动小说 · 无限可能</div>
+  </div>
+</div>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <span class="title">命运之书</span>
+  <span class="subtitle" id="topbar-subtitle">· 准备启程</span>
+
+
+  <span class="spacer"></span>
+  <span style="font-size:11px;color:var(--text-dim);margin-right:4px;">字号</span>
+  <button class="btn sm" onclick="UIManager.changeFontSize(-1)" title="缩小字体">A-</button>
+  <button class="btn sm" onclick="UIManager.changeFontSize(1)" title="放大字体">A+</button>
+  <button class="btn" onclick="UIManager.toggleAIModal()" title="AI剧情生成">AI</button>
+  <button class="btn ai" id="btn-auto-continue" onclick="GameEngine.toggleAutoContinue()" title="AI自动续写剧情">自动续写</button>
+  <button class="btn sm" id="anno-toggle-btn" onclick="AnnotationEngine.toggle()" title="开启/关闭人物道具地点注释"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1" style="vertical-align:-1px;margin-right:3px;"><path d="M6 1v1M6 8v3M1 6h1M10 6h1M2.5 2.5l.7.7M8.8 8.8l.7.7M2.5 9.5l.7-.7M8.8 3.2l.7-.7"/><circle cx="6" cy="5" r="1.8"/></svg>注释</button>
+  <button class="btn" onclick="CharacterBioManager.show()" title="人物小传">人物</button>
+  <button class="btn" id="btn-world-builder" onclick="WorldBuilder.show()" title="世界构建器 — 人物/功法/地点设定" style="display:none;">世界</button>
+  <button class="btn" onclick="PlotPlanManager.show()" title="剧情规划" id="btn-plot-plan">剧情规划</button>
+  <button class="btn" onclick="SaveManager.showSave()">保存</button>
+  <button class="btn" onclick="SaveManager.showLoad()">读取</button>
+  <button class="btn foreshadow" id="btn-foreshadow" onclick="Foreshadowing.toggle()" title="点击启用：在下次手动抉择时，AI会在剧情中巧埋伏笔">🔮 伏笔</button>
+  <button class="btn" id="btn-journey-diary" onclick="JourneyDiary.toggle()" title="旅途日记">📜 日记</button>
+  <button class="btn" onclick="GameEngine.exportStory()" title="导出冒险记录">导出</button>
+  <button class="btn" onclick="GameEngine.resetGame()">新游戏</button>
+  <button id="topbar-theme-btn" onclick="ThemeManager.cycle()" title="切换主题">墨夜</button>
+</div>
+
+<!-- MAIN INTERFACE -->
+<div id="main">
+  <div id="story-panel">
+    <div id="story-header">
+      <span class="chapter" id="chapter-label">第一章</span>
+      <span class="scene" id="scene-label">命运的开端</span>
+      <span class="spacer" style="flex:1;"></span>
+      <button class="btn sm" id="undo-btn" onclick="GameEngine.undo()" style="display:none;" title="撤销上一步选择">↩ 反悔</button>
+    </div>
+    <div id="story-content"></div>
+    <div id="choice-bar" style="display:none;">
+      <div class="choice-hint">做出你的选择</div>
+      <div id="choices-container"></div>
+      <div id="custom-choice">
+        <input type="text" id="custom-input" placeholder="或者输入你自己的选择…" maxlength="200">
+        <button onclick="GameEngine.handleCustomChoice()">执行</button>
+      </div>
+    </div>
+  </div>
+  <div id="status-panel">
+    <h3>角色状态</h3>
+    <div class="stat-section">
+      <h4>基本信息</h4>
+      <div class="stat-row"><span class="stat-label">姓名</span><span class="stat-value" id="s-name">---</span></div>
+      <div class="stat-row"><span class="stat-label">性别</span><span class="stat-value" id="s-sex">---</span></div>
+      <div class="stat-row"><span class="stat-label">年龄</span><span class="stat-value" id="s-age">---</span></div>
+      <div class="stat-row"><span class="stat-label">等级</span><span class="stat-value" id="s-level">Lv.1</span></div>
+      <div class="stat-row"><span class="stat-label">健康</span><span class="stat-value" id="s-health">健康</span></div>
+      <div class="stat-row"><span class="stat-label">心情</span><span class="stat-value" id="s-mood">平淡</span></div>
+      <div class="stat-row"><span class="stat-label">天数</span><span class="stat-value" id="s-days">第1天</span></div>
+      <div class="stat-row" style="display:none;"><span class="stat-label">章节</span><span class="stat-value" id="s-chapter">0</span></div>
+    </div>
+    <div class="stat-section" id="s-milestones-section" style="display:none;">
+      <h4>冒险统计</h4><div id="s-milestones"></div>
+    </div>
+    <div class="stat-section" id="s-attributes-section" style="display:none;">
+      <h4>属性</h4><div id="s-attributes"></div>
+    </div>
+    <div class="stat-section"><h4>技能/能力</h4><div id="s-skills"></div></div>
+    <div class="stat-section"><h4>物品</h4><div id="s-items"></div></div>
+    <div class="stat-section" id="char-panel-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <h4 style="margin:0;">人际关系</h4>
+        <div style="display:flex;gap:4px;">
+          <button class="btn sm" onclick="CharGraphPanel.toggleExpand()" id="char-panel-toggle" title="展开/收起">▼</button>
+          <button class="btn sm" onclick="CharacterBioManager.show()" title="全屏打开人物关系图" style="font-size:10px;">⛶</button>
+        </div>
+      </div>
+      <div id="char-panel-canvas-wrap" style="display:none;height:220px;position:relative;background:var(--bg);border-radius:4px;overflow:hidden;border:1px solid var(--border-light);">
+        <canvas id="char-panel-canvas"></canvas>
+        <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text-dim);background:rgba(0,0,0,0.5);padding:2px 8px;border-radius:8px;pointer-events:none;">双击全屏 · 滚轮缩放</div>
+      </div>
+      <div id="s-relations"></div>
+    </div>
+    <div class="stat-section"><h4>任务</h4><div id="s-quests"></div></div>
+    <div id="style-memory-section">
+      <div class="sm-header">
+        <h4>文笔记忆</h4>
+        <span class="sm-status" id="sm-status">未学习</span>
+      </div>
+      <button class="btn sm" onclick="StyleMemory.openModal()" style="width:100%;margin-top:4px;">+ 学习文笔</button>
+      <div class="sm-preview hidden" id="sm-preview" onclick="StyleMemory.openModal()"></div>
+    </div>
+    <div class="stat-section" style="border-top:1px solid var(--border);padding:8px 16px;">
+      <div class="sm-header" style="margin-bottom:4px;">
+        <h4>🔮 伏笔</h4>
+        <button class="btn sm" id="fs-resolve-all-btn" onclick="Foreshadowing.resolveAll()" style="font-size:10px;display:none;">全部解除</button>
+      </div>
+      <div id="foreshadow-panel-list">
+        <div style="font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0;">暂无伏笔</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ====== API CONFIG ====== -->
+<div id="api-config-overlay" class="hidden">
+  <div id="api-config-card">
+    <h2>AI 接入配置</h2>
+    <div class="setup-sub">填入你的 API 密钥，驱动命运之书的所有智能生成功能</div>
+
+    <div class="setup-group">
+      <div class="field-header"><label>API 类型</label></div>
+      <div class="field-hint">选择你的 AI 服务商，或输入自定义地址</div>
+      <div class="genre-grid" id="api-preset-grid">
+        <button class="genre-btn active" data-preset="deepseek">DeepSeek</button>
+        <button class="genre-btn" data-preset="openai">OpenAI 兼容</button>
+        <button class="genre-btn" data-preset="custom">自定义地址</button>
+      </div>
+    </div>
+
+    <div class="setup-group">
+      <div class="field-header"><label>API 地址</label></div>
+      <div class="field-hint">请求发送的目标 URL（OpenAI 兼容格式）</div>
+      <input type="text" id="api-url" value="https://api.deepseek.com/v1/chat/completions" placeholder="https://api.deepseek.com/v1/chat/completions">
+    </div>
+
+    <div class="setup-group">
+      <div class="field-header"><label>API Key</label></div>
+      <div class="field-hint">你的密钥（仅存储在本机浏览器中）</div>
+
+      <input type="password" id="api-key" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+      <div style="margin-top:4px;font-size:11px;color:var(--text-dim);">
+        <label style="cursor:pointer;"><input type="checkbox" id="api-show-key" onchange="APIConfig._toggleKey()" style="vertical-align:middle;"> 显示密钥</label>
+      </div>
+    </div>
+
+    <div class="setup-group">
+      <div class="field-header"><label>模型名称</label></div>
+      <div class="field-hint">使用的模型 ID（如 deepseek-chat、gpt-4o 等）</div>
+      <input type="text" id="api-model" value="deepseek-chat" placeholder="deepseek-chat">
+    </div>
+
+    <div class="setup-group">
+      <button class="btn primary" style="width:100%;padding:12px;font-size:15px;" onclick="APIConfig.save()">保存配置并继续</button>
+      <span style="display:block;text-align:center;margin-top:10px;font-size:12px;color:var(--text-dim);cursor:pointer;" onclick="APIConfig.skip()">跳过配置（使用离线模板生成）</span>
+      <div style="display:flex;justify-content:center;gap:16px;margin-top:12px;">
+        <span style="font-size:12px;color:var(--text-dim);cursor:pointer;padding:4px 8px;border:1px solid var(--border);border-radius:4px;" onclick="location.reload()">🔄 刷新页面</span>
+        <span style="font-size:12px;color:var(--text-dim);cursor:pointer;padding:4px 8px;border:1px solid var(--border);border-radius:4px;" onclick="MainMenu.exitApp()">✕ 退出</span>
+      </div>
+      <div id="api-config-error" style="color:var(--danger);font-size:12px;margin-top:8px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== MAIN MENU ====== -->
+<div id="main-menu-overlay" class="hidden">
+  <div id="main-menu-card">
+    <div class="menu-decoration">— ✦ — ✦ —</div>
+    <div class="menu-title">命运之书</div>
+    <div class="menu-subtitle">互动小说引擎</div>
+    <p style="color:var(--text-dim);font-size:13px;margin:0 0 24px 0;text-align:center;letter-spacing:1px;line-height:1.6;">
+    AI 驱动深度叙事 · 每个选择改变命运 · 每个世界独一无二
+    </p>
+
+    <button class="menu-btn primary" onclick="MainMenu.startNewWorld()" id="menu-btn-new" title="快捷键: 1">
+      <span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 1l1.5 4.5L14 6l-3.5 3 1 5L8 11.5 4.5 14l1-5L2 6l4.5-.5z"/></svg></span>
+      <span class="menu-label">开始创造世界</span>
+      <span class="menu-hint">构建世界观与角色</span>
+      <span class="menu-arrow">→</span>
+      <span class="hotkey">1</span>
+    </button>
+
+    <button class="menu-btn" onclick="MainMenu.continueAdventure()" id="menu-btn-continue" title="快捷键: 2">
+      <span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 3v10a2 2 0 0 0 2 2h10V3H4a2 2 0 0 1 0-4h10"/><path d="M4 3v10"/></svg></span>
+      <span class="menu-label">继续冒险</span>
+      <span class="menu-hint" id="menu-continue-hint">载入最近的存档</span>
+      <span class="menu-arrow">→</span>
+      <span class="hotkey">2</span>
+    </button>
+
+    <button class="menu-btn" onclick="MainMenu.openSettings()" title="快捷键: 3">
+      <span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M2.3 2.3l1 1M12.7 12.7l1 1M2.3 13.7l1-1M12.7 3.3l1-1"/></svg></span>
+      <span class="menu-label">设置</span>
+      <span class="menu-hint">AI 接入配置</span>
+      <span class="menu-arrow">→</span>
+      <span class="hotkey">3</span>
+    </button>
+
+    <button class="menu-btn" onclick="MainMenu.exitApp()" title="快捷键: 4">
+      <span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 3v10a2 2 0 0 0 2 2h3"/><path d="M14 8H7M10 5l3 3-3 3"/><rect x="2" y="2" width="5" height="12" rx="1"/></svg></span>
+      <span class="menu-label">退出</span>
+      <span class="menu-hint">关闭命运之书</span>
+      <span class="menu-arrow">→</span>
+      <span class="hotkey">4</span>
+    </button>
+
+    <div class="theme-selector">
+      <span class="ts-label">主题</span>
+      <span id="theme-swatches"></span>
+    </div>
+    <div class="menu-footer" id="menu-version-info">V5.0</div>
+  </div>
+</div>
+
+<!-- ====== SETUP WIZARD ====== -->
+<div id="setup-overlay" class="hidden">
+  <div id="setup-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="margin:0;">命运之书</h2>
+      <span id="btn-api-reconfig" style="font-size:12px;color:var(--text-dim);cursor:pointer;display:none;" onclick="APIConfig.showConfig()" title="重新配置 API">API 配置</span>
+    </div>
+    <div class="setup-sub">在冒险开始之前，先塑造你的世界和主角</div>
+
+    <div style="margin-bottom:16px;">
+      <div style="text-align:center;color:var(--text-dim);font-size:12px;margin-bottom:10px;letter-spacing:1px;">AI 辅助工具</div>
+      <button class="btn" id="btn-world-gen" style="display:block;width:100%;padding:14px 18px;margin-bottom:8px;background:linear-gradient(135deg,#0a1a16,#0e241c);border:1px solid var(--ai-color);border-radius:8px;text-align:center;cursor:pointer;font-size:14px;color:var(--ai-color);transition:all .2s;" onclick="SetupWizard.openWorldGenModal()" onmouseenter="this.style.borderColor='#6ae0b0';this.style.background='linear-gradient(135deg,#0e241c,#163028)';" onmouseleave="this.style.borderColor='var(--ai-color)';this.style.background='linear-gradient(135deg,#0a1a16,#0e241c)';">AI 一键生成——输入关键词自动构建世界观、角色与能力体系</button>
+      <button class="btn" id="btn-import-settings" style="display:block;width:100%;padding:14px 18px;margin-bottom:8px;background:linear-gradient(135deg,#12101a,#1a1626);border:1px solid var(--gold);border-radius:8px;text-align:center;cursor:pointer;font-size:14px;color:var(--gold-light);transition:all .2s;" onclick="SetupWizard.triggerImport()" onmouseenter="this.style.borderColor='var(--gold-light)';this.style.background='linear-gradient(135deg,#1a1626,#222038)';" onmouseleave="this.style.borderColor='var(--gold)';this.style.background='linear-gradient(135deg,#12101a,#1a1626)';">文档导入 —— 上传设定文档，AI 自动解析</button>
+      <button class="btn" id="btn-extract-media" style="display:block;width:100%;padding:14px 18px;margin-bottom:8px;background:linear-gradient(135deg,#100e1a,#161226);border:1px solid var(--gold);border-radius:8px;text-align:center;cursor:pointer;font-size:14px;color:var(--gold-light);transition:all .2s;" onclick="SetupWizard.openMediaExtract()" onmouseenter="this.style.borderColor='var(--gold-pale)';this.style.background='linear-gradient(135deg,#161226,#1e1a30)';" onmouseleave="this.style.borderColor='var(--gold)';this.style.background='linear-gradient(135deg,#100e1a,#161226)';">作品信息提取 —— 输入作品名，AI 自动提取设定</button>
+    </div>
+    <input type="file" id="import-file-input" accept=".txt,.md" style="display:none;" onchange="SetupWizard.handleImport(this)">
+    <input type="file" id="media-file-input" accept=".txt,.md" style="display:none;" onchange="SetupWizard.handleMediaFile(this)">
+    <div id="continue-banner" style="display:none;" onclick="APIConfig.continueAdventure()" onmouseenter="this.style.borderColor='var(--gold-light)';this.style.background='var(--card-hover)';" onmouseleave="this.style.borderColor='var(--gold)';this.style.background='var(--card)';">
+      <span style="color:var(--gold-light);font-size:14px;">曾经的冒险还未完结……是否继续？</span>
+    </div>
+    <div class="setup-tabs">
+      <div class="setup-tab active" onclick="SetupWizard.switchTab(0)"><span class="tab-num">1</span>世界观</div>
+      <div class="setup-tab" onclick="SetupWizard.switchTab(1)"><span class="tab-num">2</span>主角设定</div>
+      <div class="setup-tab" onclick="SetupWizard.switchTab(2)"><span class="tab-num">3</span>确认开始</div>
+    </div>
+
+    <div class="setup-body">
+      <!-- TAB 0: WORLD -->
+      <div class="setup-page active" id="page-world">
+        <div style="text-align:center;color:var(--text-dim);font-size:12px;margin-bottom:12px;letter-spacing:1px;border-bottom:1px solid var(--border);padding-bottom:8px;">— 或手动设定 —</div>
+
+        <div class="setup-group">
+          <div class="field-header"><label style="color:#d06666;">* 冒险类型设定（必选）</label></div>
+          <div class="field-hint">选择你的冒险类型——这决定了世界观的整体风格走向</div>
+          <div class="genre-grid" id="genre-grid">
+            <button class="genre-btn" data-genre="东方玄幻">东方玄幻</button>
+            <button class="genre-btn" data-genre="仙侠修真">仙侠修真</button>
+            <button class="genre-btn" data-genre="西方魔幻">西方魔幻</button>
+            <button class="genre-btn" data-genre="科幻末世">科幻末世</button>
+            <button class="genre-btn" data-genre="都市异能">都市异能</button>
+            <button class="genre-btn" data-genre="重生穿越">重生穿越</button>
+            <button class="genre-btn" data-genre="游戏异界">游戏异界</button>
+            <button class="genre-btn" data-genre="悬疑灵异">悬疑灵异</button>
+            <button class="genre-btn" data-genre="历史架空">历史架空</button>
+            <button class="genre-btn" data-genre="武侠江湖">武侠江湖</button>
+            <button class="genre-btn" data-genre="大千世界">大千世界</button>
+            <button class="genre-btn" data-genre="现代都市恋爱">都市恋爱</button>
+            <button class="genre-btn" data-genre="校园日常">校园日常</button>
+            <button class="genre-btn" data-genre="古风言情">古风言情</button>
+            <button class="genre-btn" data-genre="美食生活">美食生活</button>
+            <button class="genre-btn" data-genre="商战职场">商战职场</button>
+            <button class="genre-btn" data-genre="custom" id="genre-custom-btn">+ 自定义</button>
+          </div>
+          <div class="genre-custom-wrap hidden" id="genre-custom-wrap">
+            <input type="text" id="w-genre-custom" placeholder="输入自定义冒险类型…" maxlength="20">
+            <button class="btn-sm" onclick="SetupWizard.applyCustomGenre()">确定</button>
+          </div>
+          <input type="hidden" id="w-genre" value="">
+        </div>
+        <div class="setup-group">
+          <div class="field-header"><label>世界名称</label></div>
+          <div class="field-hint">给你的世界取一个名字</div>
+          <input type="text" id="w-name" placeholder="例如：苍蓝大陆、星渊纪元、灵气末世…" maxlength="30" value="">
+        </div>
+        <div class="setup-group">
+          <div class="field-header">
+            <label>世界观概述</label>
+            <button class="ai-gen-btn" onclick="ContentGenerator.generate('w-desc','世界观概述')">AI 生成</button>
+          </div>
+          <div class="field-hint">描述这个世界的核心设定——这是一个怎样的世界？</div>
+          <textarea id="w-desc" placeholder="选好冒险类型后，点击右侧 AI 生成按钮自动填充…" rows="4"></textarea>
+        </div>
+        <div class="setup-group">
+          <div class="field-header">
+            <label>时代背景</label>
+            <button class="ai-gen-btn" onclick="ContentGenerator.generate('w-era','时代背景')">AI 生成</button>
+          </div>
+          <div class="field-hint">近未来？古代？末世？赛博朋克？——根据世界观自动推导</div>
+          <input type="text" id="w-era" placeholder="" value="">
+        </div>
+        <div class="setup-group">
+          <div class="field-header">
+            <label>核心地点</label>
+            <button class="ai-gen-btn" onclick="ContentGenerator.generate('w-locations','核心地点')">AI 生成</button>
+          </div>
+          <div class="field-hint">故事发生的主要地点（用换行分隔）</div>
+          <textarea id="w-locations" placeholder="" rows="3"></textarea>
+        </div>
+        <div class="setup-group">
+          <div class="field-header">
+            <label>势力设定</label>
+            <div style="display:flex;gap:6px;">
+              <button class="ai-gen-btn" onclick="ContentGenerator.generate('w-factions-bulk','势力设定')">AI 生成全部</button>
+              <button class="btn-sm" onclick="SetupWizard.addFaction()">+ 添加势力</button>
+            </div>
+          </div>
+          <div class="field-hint">世界中的各大势力——正派、反派、中立组织</div>
+          <div class="faction-list" id="faction-list">
+            <div class="faction-item">
+              <button class="faction-del" onclick="SetupWizard.removeFaction(this)" title="删除">x</button>
+              <div class="faction-row">
+                <input type="text" placeholder="势力名称" class="f-name" value="">
+                <input type="text" placeholder="立场（正/反/中立）" class="f-align" style="max-width:120px;" value="">
+              </div>
+              <input type="text" placeholder="简介" class="f-desc" style="margin-top:6px;" value="">
+            </div>
+          </div>
+        </div>
+        <div class="setup-group">
+          <div class="field-header">
+            <label>能力等级体系</label>
+            <button class="ai-gen-btn" onclick="ContentGenerator.generate('w-power-system','能力等级体系')">AI 生成</button>
+          </div>
+          <div class="field-hint">这个世界的力量等级划分——修炼体系、品阶、境界</div>
+          <textarea id="w-power-system" placeholder="例如：&#10;- 凡人→筑基→金丹→元婴→化神&#10;- F级→E级→D级→C级→B级→A级→S级&#10;- 下位→中位→上位→巅峰→超越者" rows="4"></textarea>
+        </div>
+      </div>
+
+      <!-- TAB 1: CHARACTER -->
+      <div class="setup-page" id="page-char">
+        <div class="setup-row">
+          <div class="setup-group">
+            <div class="field-header">
+              <label>姓名</label>
+              <button class="ai-gen-btn" onclick="ContentGenerator.generate('c-name','姓名')">AI 生成</button>
+            </div>
+            <input type="text" id="c-name" value="" maxlength="20" placeholder="手动输入，或点击AI生成">
+          </div>
+          <div class="setup-group">
+            <label>年龄</label>
+            <input type="number" id="c-age" value="20" min="10" max="999">
+          </div>
+          <div class="setup-group">
+            <label>性别</label>
+            <select id="c-sex">
+              <option value="男">男</option>
+              <option value="女">女</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+        </div>
+        <div class="setup-row">
+          <div class="setup-group">
+            <div class="field-header">
+              <label>性格描述</label>
+              <button class="ai-gen-btn" onclick="ContentGenerator.generate('c-personality','性格描述')">AI 生成</button>
+            </div>
+            <div class="field-hint">性格特点、行为习惯、内心矛盾</div>
+            <textarea id="c-personality" placeholder="例如：外表冷静内敛、内心热血执着，对不公之事无法坐视不理，但行事谨慎、谋定后动。偶尔会因为过度保护身边的人而做出冒险决定。" rows="2"></textarea>
+          </div>
+          <div class="setup-group">
+            <div class="field-header">
+              <label>一句话描述</label>
+              <button class="ai-gen-btn" onclick="ContentGenerator.generate('c-one-line','一句话描述')">AI 生成</button>
+            </div>
+            <div class="field-hint">用一句话概括这个角色</div>
+            <input type="text" id="c-one-line" placeholder="例如：从废墟中崛起的拾荒少年，手握上古传承，在各方势力的夹缝中走出一条自己的路。" value="">
+          </div>
+        </div>
+        <div class="setup-row">
+          <div class="setup-group">
+            <div class="field-header">
+              <label>外貌描述</label>
+              <button class="ai-gen-btn" onclick="ContentGenerator.generate('c-appearance','外貌描述')">AI 生成</button>
+            </div>
+            <textarea id="c-appearance" placeholder="例如：黑色短发略显凌乱，深褐色的眼睛在灵气激发时会泛起淡淡的金芒。常穿一件磨损的深色夹克，左手上戴着那枚改变他命运的古老玉佩。" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="setup-group">
+          <div class="field-header">
+            <label>背景故事</label>
+            <button class="ai-gen-btn" onclick="ContentGenerator.generate('c-background','背景故事')">AI 生成</button>
+          </div>
+          <div class="field-hint">主角的身世、经历、最初的动机</div>
+          <textarea id="c-background" placeholder="例如：林夜，22岁，自由城邦最底层的拾荒者。父母在十年前的一次妖兽袭击中失踪，他独自在废墟区挣扎求生。一次偶然的遗迹探索中，他发现了一枚刻有古老符文的玉佩——那是上古修士留下的传承之器。" rows="3"></textarea>
+        </div>
+        <div class="setup-group">
+          <div class="field-header">
+            <label>能力详细设定</label>
+            <button class="ai-gen-btn" onclick="ContentGenerator.generate('c-ability','能力详细设定')">AI 生成</button>
+          </div>
+          <div class="field-hint">初始能力、天赋、特殊技能或潜在的隐藏能力</div>
+          <textarea id="c-ability" placeholder="例如：&#10;- 上古玉佩传承：封印着一位上古修士的残魂，可传授古老修行法门&#10;- 灵力感知：高于常人的灵气亲和度（先天隐藏天赋，尚未完全觉醒）&#10;- 拾荒者生存技能：废墟地形精通、基础格斗、危机直觉" rows="3"></textarea>
+        </div>
+        <div class="setup-group">
+          <div class="field-header">
+            <label>初始目标/动机</label>
+            <button class="ai-gen-btn" onclick="ContentGenerator.generate('c-goal','初始目标')">AI 生成</button>
+          </div>
+          <div class="field-hint">主角一开始想要什么？推动剧情的核心驱动力</div>
+          <input type="text" id="c-goal" placeholder="例如：寻找父母失踪的真相，同时在这乱世中守护自己珍视的一切。" value="">
+        </div>
+        <div class="setup-group" style="border:1px dashed var(--border);border-radius:6px;padding:12px;margin-top:4px;">
+          <div style="color:var(--text-dim);font-size:12px;">角色状态面板将在进入游戏后，由 AI 根据世界观和能力体系自动生成，无需手动配置。</div>
+        </div>
+      </div>
+
+      <!-- TAB 2: CONFIRM -->
+      <div class="setup-page" id="page-confirm">
+        <div class="setup-summary" id="summary-world"></div>
+        <div class="setup-summary" id="summary-char"></div>
+        <div class="setup-summary" id="summary-attrs"></div>
+        <div class="setup-summary" id="summary-scenario"></div>
+      </div>
+    </div>
+
+    <div class="setup-footer">
+      <button class="btn" onclick="MainMenu.show()" style="font-size:12px;color:var(--text-dim);">← 返回主菜单</button>
+      <button class="btn" id="setup-prev" onclick="SetupWizard.prevTab()">上一步</button>
+      <span style="font-size:12px;color:var(--text-dim);" id="setup-step-indicator">1 / 3</span>
+      <div>
+        <button class="btn" id="setup-next" onclick="SetupWizard.nextTab()">下一步</button>
+        <button id="setup-start" onclick="GameEngine.startGame()" style="display:none;">开 启 命 运</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI HELPER OVERLAY -->
+<div class="ai-overlay hidden" id="ai-helper">
+  <div class="ai-dialog">
+    <h3>AI 智能生成</h3>
+    <div class="ai-target" id="ai-h-target"></div>
+    <div class="ai-section-label">已收集的上下文（自动填充）</div>
+    <textarea class="ai-prompt-box" id="ai-h-prompt" readonly></textarea>
+    <button class="btn sm ai" onclick="SetupWizard.copyPrompt()" style="margin-top:4px;">复制提示词</button>
+    <div class="ai-section-label">AI 生成结果（粘贴到这里）</div>
+    <textarea class="ai-response-box" id="ai-h-response" placeholder="将 WorkBuddy / ChatGPT / Claude 的生成结果粘贴到这里…"></textarea>
+    <div class="ai-actions">
+      <button class="btn primary" onclick="SetupWizard.applyAI()">应用生成结果</button>
+      <button class="btn ai" onclick="SetupWizard.regenerateAI()">重新生成提示词</button>
+      <button class="btn" onclick="SetupWizard.closeAI()">取消</button>
+    </div>
+    <div class="ai-hint">提示：点击「复制提示词」→ 粘贴到 WorkBuddy 对话框 → 将 AI 回复粘贴回上方输入框 → 点击「应用」即可。</div>
+  </div>
+</div>
+
+<!-- ====== MEDIA EXTRACT MODAL ====== -->
+<div class="modal-overlay hidden" id="media-extract-modal">
+  <div class="modal-card" style="width:620px;max-height:90vh;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 12px;border-bottom:1px solid var(--border);">
+      <h3 style="color:var(--gold);margin:0;" id="media-modal-title">作品信息提取</h3>
+      <button class="btn sm" onclick="UIManager.hideModal('media-extract-modal')">关闭</button>
+    </div>
+    <div id="media-step-indicator" style="display:flex;gap:4px;padding:12px 0;align-items:center;">
+      <div class="media-step-dot active" id="media-step-1" style="flex:1;text-align:center;padding:6px 10px;border-radius:4px;font-size:12px;background:var(--gold);color:var(--bg);">① 输入IP</div>
+      <span style="color:var(--border);">→</span>
+      <div class="media-step-dot" id="media-step-2" style="flex:1;text-align:center;padding:6px 10px;border-radius:4px;font-size:12px;background:var(--card);color:var(--text-dim);">② 选择作品</div>
+      <span style="color:var(--border);">→</span>
+      <div class="media-step-dot" id="media-step-3" style="flex:1;text-align:center;padding:6px 10px;border-radius:4px;font-size:12px;background:var(--card);color:var(--text-dim);">③ 确认角色</div>
+    </div>
+    <div id="media-step1-content" style="padding:8px 0;">
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">输入作品/IP名称，AI将自动提取世界观、角色、势力等结构化设定。如IP下有多个独立分支作品（如奥特曼有迪迦/泽塔/捷德），会先让你选择具体作品。</p>
+      <div style="margin-bottom:12px;">
+        <label style="color:var(--text-dim);font-size:12px;display:block;margin-bottom:4px;">作品/IP名称（必填）</label>
+        <input type="text" id="media-work-name" placeholder="如：哈利波特、奥特曼、三体、鬼灭之刃..." maxlength="80" style="width:100%;padding:10px 14px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;font-family:var(--font-main);" onkeydown="if(event.key==='Enter')SetupWizard.doMediaExtract()">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="color:var(--text-dim);font-size:12px;display:block;margin-bottom:4px;">作品类型</label>
+        <select id="media-work-type" style="width:100%;padding:10px 14px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;font-family:var(--font-main);">
+          <option value="auto">自动识别</option>
+          <option value="movie">电影</option>
+          <option value="tv">电视剧</option>
+          <option value="novel">小说/文学</option>
+          <option value="comic">漫画/动画</option>
+        </select>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="color:var(--text-dim);font-size:12px;display:block;margin-bottom:4px;">补充文本（可选，粘贴作品简介或片段）</label>
+        <textarea id="media-extra-text" placeholder="可选：粘贴作品简介、剧情概述、人物介绍等，帮助AI更准确地提取..." maxlength="15000" rows="3" style="width:100%;padding:10px 14px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:var(--font-main);resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn primary" id="btn-media-extract" onclick="SetupWizard.doMediaExtract()" style="flex:1;padding:12px 24px;font-size:14px;">开始提取</button>
+        <button class="btn ai" onclick="SetupWizard.triggerMediaFile()" style="padding:12px 20px;font-size:13px;white-space:nowrap;">上传文件</button>
+      </div>
+    </div>
+    <div id="media-step2-content" style="display:none;padding:8px 0;">
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:12px;">该IP下有多个分支作品，请选择其中一个进入：</p>
+      <div id="media-works-list" style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;padding:4px 0;"></div>
+      <div style="margin-top:12px;">
+        <button class="btn" onclick="SetupWizard.backToMediaStep1()" style="padding:8px 16px;">← 返回重新输入</button>
+      </div>
+    </div>
+    <div id="media-step3-content" style="display:none;padding:8px 0;">
+      <div id="media-extract-result" style="margin:0 0 12px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:6px;max-height:300px;overflow-y:auto;font-size:13px;line-height:1.8;"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="SetupWizard.backToMediaStep2()" style="padding:12px 20px;font-size:13px;">← 换一个作品</button>
+        <button class="btn" style="flex:1;padding:12px 20px;font-size:14px;border-color:var(--success);color:var(--success);background:linear-gradient(135deg,#0a140a,#0e2010);" id="btn-media-apply" onclick="SetupWizard.applyMediaExtract()" onmouseenter="this.style.background='linear-gradient(135deg,#0e2010,#1a3020)'" onmouseleave="this.style.background='linear-gradient(135deg,#0a140a,#0e2010)'">应用此设定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== AI WORLD GENERATION MODAL ====== -->
+<div class="modal-overlay hidden" id="world-gen-modal">
+  <div class="modal-card" style="width:560px;max-height:85vh;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 12px;border-bottom:1px solid var(--border);">
+      <h3 style="color:var(--ai-color);margin:0;">✨ AI 一键生成整个世界</h3>
+      <button class="btn sm" onclick="UIManager.hideModal('world-gen-modal')">关闭</button>
+    </div>
+    <div style="padding:16px 0;">
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">输入一个概念关键词，AI 将自动生成完整的「世界观 + 主角 + 势力 + 配角 + 能力体系」。也可以随机生成。</p>
+      <div style="margin-bottom:12px;">
+        <label style="color:var(--text-dim);font-size:12px;display:block;margin-bottom:4px;">概念关键词</label>
+        <input type="text" id="wgen-keyword" placeholder="如：哈利波特、甄嬛传、赛博朋克、克苏鲁深海... 留空则随机" maxlength="40" style="width:100%;padding:10px 14px;background:var(--input-bg);border:1px solid var(--ai-color);border-radius:6px;color:var(--text);font-size:14px;font-family:var(--font-main);" onkeydown="if(event.key==='Enter')SetupWizard.doWorldGenFromModal()">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn primary" id="btn-wgen-generate" onclick="SetupWizard.doWorldGenFromModal()" style="flex:1;padding:12px 24px;font-size:14px;background:linear-gradient(135deg,#0a2018,#0e3024);border-color:var(--ai-color);color:var(--ai-color);" onmouseenter="this.style.background='linear-gradient(135deg,#0e3024,#1a4a38)'" onmouseleave="this.style.background='linear-gradient(135deg,#0a2018,#0e3024)'">AI 生成</button>
+        <button class="btn ai" onclick="SetupWizard.doWorldGenFromModal(true)" style="padding:12px 20px;font-size:13px;white-space:nowrap;">随机</button>
+      </div>
+      <div id="wgen-loading-area" style="display:none;text-align:center;padding:20px 0;">
+        <div style="font-size:36px;margin-bottom:12px;animation:pulse 1.5s infinite;transform:scaleY(-1);">✦</div>
+        <p style="color:var(--gold-light);font-size:15px;letter-spacing:1px;">正在构建世界...</p>
+        <p style="color:var(--text-dim);font-size:13px;" id="wgen-loading-msg">命运的丝线正在编织...</p>
+        <div style="margin-top:16px;width:240px;height:4px;background:var(--border);border-radius:3px;overflow:hidden;margin-left:auto;margin-right:auto;">
+          <div style="width:20%;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:3px;animation:gen-progress 2s ease-in-out infinite;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="save-modal">
+  <div class="modal-card">
+    <h3>保存进度</h3>
+    <div id="save-slots"></div>
+    <button class="btn" onclick="UIManager.hideModal('save-modal')" style="width:100%;margin-top:8px;">关闭</button>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="load-modal">
+  <div class="modal-card">
+    <h3>读取存档</h3>
+    <div id="load-slots"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn primary" onclick="SaveManager.importSave()" style="flex:1;font-size:13px;">📂 导入存档文件</button>
+      <button class="btn" onclick="SaveManager.closeLoadModal()" style="flex:1;font-size:13px;">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Impact confirmation dialog -->
+<div class="modal-overlay hidden" id="confirm-impact-overlay">
+  <div class="modal-card" style="width:480px;text-align:center;padding:32px;border-color:var(--gold);">
+    <h3 id="confirm-impact-title" style="color:var(--gold);font-size:20px;margin-bottom:16px;"> 重大抉择</h3>
+    <p style="font-size:15px;margin:12px 0;color:var(--text);line-height:1.8;">你的选择：<br><strong id="confirm-impact-text" style="color:var(--gold-light);font-size:16px;"></strong></p>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:20px;line-height:1.6;" id="confirm-impact-reason"></p>
+    <p style="font-size:12px;color:var(--danger);margin-bottom:20px;">确认后将自动存档并继续推演剧情</p>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button class="btn primary" id="confirm-impact-yes" style="padding:10px 28px;font-size:14px;">确认执行并自动存档</button>
+      <button class="btn danger" id="confirm-impact-cancel" style="padding:10px 28px;font-size:14px;">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="confirm-delete-overlay">
+  <div class="modal-card" style="width:420px;text-align:center;padding:28px;border-color:var(--danger);">
+    <h3 style="color:var(--danger);font-size:18px;margin-bottom:16px;"> 确认删除</h3>
+    <p style="font-size:14px;color:var(--text);line-height:1.8;margin-bottom:8px;" id="confirm-delete-text"></p>
+    <p style="font-size:12px;color:var(--danger);margin-bottom:20px;line-height:1.5;"> 此操作不可逆，删除后无法恢复！</p>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button class="btn danger" id="confirm-delete-yes" style="padding:10px 28px;font-size:14px;">确认删除</button>
+      <button class="btn" id="confirm-delete-cancel" style="padding:10px 28px;font-size:14px;">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="ai-modal">
+  <div class="modal-card" style="width:600px;">
+    <h3>AI 剧情生成</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">将当前上下文复制给AI，让AI生成下一段剧情，然后粘贴回来。</p>
+    <label style="color:var(--gold);font-size:13px;">当前剧情上下文（复制给AI）</label>
+    <textarea class="ai-context" id="ai-context-out" readonly></textarea>
+    <button class="btn primary" onclick="UIManager.copyAIContext()" style="margin-bottom:12px;">复制上下文</button>
+    <label style="color:var(--gold);font-size:13px;">AI生成的剧情</label>
+    <textarea class="ai-textarea" id="ai-content-in" placeholder="将AI生成的剧情粘贴到这里…"></textarea>
+    <label style="color:var(--gold);font-size:13px;">AI生成的选项（每行一个，推荐选项前加*）</label>
+    <textarea class="ai-textarea" id="ai-choices-in" placeholder="*接受神秘人的提议&#10;拒绝并离开&#10;假装答应，暗中调查"></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn primary" onclick="GameEngine.applyAIContent()" style="flex:1;">注入AI剧情</button>
+      <button class="btn" onclick="UIManager.hideModal('ai-modal')">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ====== CHARACTER BIO MODAL (Canvas Relation Graph) ====== -->
+<div class="modal-overlay hidden" id="char-bio-modal">
+  <div class="modal-card">
+    <div id="char-bio-header">
+      <h3 style="margin:0;">人物关系图</h3>
+      <button class="btn sm" onclick="CharacterBioManager.close()">关闭</button>
+    </div>
+    <div id="char-bio-toolbar">
+      <button onclick="CharGraph.addCharacter()" title="添加人物">＋ 人物</button>
+      <button id="btn-char-conn" onclick="CharGraph.toggleConnectMode()" title="连线模式">🔗 连线</button>
+      <span class="sep"></span>
+      <button onclick="CharGraph.autoLayout()" title="自动排列">📐 布局</button>
+      <button onclick="CharGraph.aiGenerate()" title="AI 生成" style="background:#1a1a10;border-color:var(--gold-dim);">✨ AI生成</button>
+      <span class="sep"></span>
+      <button onclick="CharGraph.zoomIn()">＋</button>
+      <span class="zoom-label" id="char-zoom-label">100%</span>
+      <button onclick="CharGraph.zoomOut()">－</button>
+      <button onclick="CharGraph.resetView()">⊡ 重置</button>
+      <span class="sep"></span>
+      <button onclick="CharGraph.exportData()">📤 导出</button>
+      <button onclick="CharGraph.importData()">📥 导入</button>
+      <button onclick="CharGraph.clearAll()" style="color:var(--danger);border-color:#3a1818;">清空</button>
+    </div>
+    <div id="char-bio-body">
+      <div id="char-list-panel">
+        <div class="clp-header">
+          <span>📜 人物列表</span>
+          <span id="clp-count" style="color:var(--text-dim);font-size:11px;">0</span>
+        </div>
+        <input type="text" class="clp-search" id="clp-search" placeholder="搜索人物…" oninput="CharListPanel.filter()">
+        <div id="char-list-items"></div>
+      </div>
+      <div id="char-canvas-wrap">
+        <canvas id="char-canvas"></canvas>
+        <div id="char-canvas-hint">🖱 拖拽移动 · 滚轮缩放 · 双击编辑 · 🔗连线 · 右键删连接</div>
+      </div>
+      <div id="char-edit-panel">
+        <h4 id="cep-title">编辑人物</h4>
+        <label>姓名 <input id="cep-name" placeholder="人物姓名"></label>
+        <label>身份/角色 <select id="cep-role">
+          <option value="protagonist">主角</option><option value="ally">盟友/同伴</option>
+          <option value="antagonist">对手/反派</option><option value="neutral">中立</option><option value="other">其他</option>
+        </select></label>
+        <label>登场 <label style="flex-direction:row;align-items:center;gap:6px;"><input type="checkbox" id="cep-appeared" style="width:16px;height:16px;accent-color:var(--success);"><span id="cep-appeared-text" style="font-size:12px;color:var(--text-dim);">未登场</span></label></label>
+        <label style="flex-direction:row;align-items:center;gap:6px;">
+          <input type="checkbox" id="cep-show-in-panel" style="width:16px;height:16px;accent-color:var(--gold);">
+          <span style="font-size:12px;color:var(--text-dim);">📌 显示在右侧关系面板</span>
+        </label>
+        <label>外貌特征 <textarea id="cep-appearance" rows="2" placeholder="身材、发色、标志特征…"></textarea></label>
+        <label>性格描述 <textarea id="cep-personality" rows="2" placeholder="性格层次、行为习惯…"></textarea></label>
+        <label>背景故事 <textarea id="cep-bg" rows="3" placeholder="出身、关键经历…"></textarea></label>
+        <label>能力设定 <textarea id="cep-ability" rows="2" placeholder="天赋、战斗风格…"></textarea></label>
+        <label>目标/动机 <input id="cep-goal" placeholder="这个角色想要什么…"></label>
+        <label>备注 <textarea id="cep-notes" rows="2" placeholder="额外设定、伏笔…"></textarea></label>
+        <!-- v4.0.1: AI 补全人物信息 -->
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <button class="btn sm" id="cep-ai-fill-btn" onclick="CharGraph.aiFillCharacter()" style="flex:1;border-color:var(--ai-color);color:var(--ai-color);">✨ AI 补全设定</button>
+            <label style="flex-direction:row;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);white-space:nowrap;">
+              <input type="checkbox" id="cep-ai-overwrite" style="width:14px;height:14px;accent-color:var(--ai-color);">覆盖已有
+            </label>
+          </div>
+        </div>
+        <label>🖼 人物贴图
+          <div id="cep-portrait-preview"><span style="color:var(--text-dim);font-size:11px;">点击下方按钮生成</span></div>
+        </label>
+        <div class="char-ep-portrait-btns">
+          <button onclick="CharGraph.generatePortrait()">✨ AI 生成贴图</button>
+          <button onclick="CharGraph.clearPortrait()">清除</button>
+        </div>
+        <div class="char-ep-btns">
+          <button class="char-ep-save" onclick="CharGraph.saveEdit()">保存</button>
+          <button class="char-ep-cancel" onclick="CharGraph.closeEdit()">取消</button>
+        </div>
+        <button class="char-ep-del" onclick="CharGraph.deleteCharacter()">🗑 删除此人物</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== PLOT PLAN MODAL ====== -->
+<div class="modal-overlay hidden" id="plot-plan-modal">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 12px;border-bottom:1px solid var(--border);">
+      <h3 style="margin:0;">剧情规划</h3>
+      <button class="btn sm" onclick="UIManager.hideModal('plot-plan-modal')">关闭</button>
+    </div>
+    <div id="plot-plan-body">
+      <div class="plot-plan-section">
+        <label>总字数目标</label>
+        <div class="label-hint">设定整部小说的预期总字数，AI 会根据阶段分配篇幅</div>
+        <input type="number" id="plot-total-words" min="5000" max="500000" step="1000" value="30000" onchange="PlotPlanManager._recalc()" placeholder="如 30000">
+      </div>
+      <div class="plot-plan-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <label>阶段规划</label>
+          <span style="font-size:11px;color:var(--text-dim);" id="phase-pct-total">100%</span>
+        </div>
+        <div class="phase-list" id="phase-list"></div>
+        <button class="btn-add-phase" onclick="PlotPlanManager.addPhase()">+ 添加阶段</button>
+      </div>
+      <div class="plot-summary" id="plot-summary" style="display:none;">
+        <div class="sum-line"><span class="sum-label">总预算</span><span class="sum-value" id="sum-total-budget">0</span></div>
+        <div class="sum-line"><span class="sum-label">当前阶段</span><span class="sum-value" id="sum-current-phase">-</span></div>
+        <div class="sum-line"><span class="sum-label">已写字数</span><span class="sum-value" id="sum-written">0</span></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn primary" onclick="PlotPlanManager.save()" style="flex:1;">保存规划</button>
+        <button class="btn" onclick="PlotPlanManager.reset()">重置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== STYLE MEMORY MODAL ====== -->
+<div class="modal-overlay hidden" id="style-memory-modal">
+  <div class="modal-card" style="width:680px;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 12px;border-bottom:1px solid var(--border);">
+      <h3 style="margin:0;">文笔记忆</h3>
+      <button class="btn sm" onclick="StyleMemory.close()">关闭</button>
+    </div>
+    <!-- 预设 -->
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;color:var(--gold);display:block;margin-bottom:4px;">内置文笔预设（一键载入）</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn sm" onclick="StyleMemory.loadPreset('十日终焉')" style="flex:1;min-width:80px;border-color:var(--gold);color:var(--gold-light);">十日终焉</button>
+        <button class="btn sm" onclick="StyleMemory.loadPreset('夜的命名术')" style="flex:1;min-width:80px;border-color:var(--gold);color:var(--gold-light);">夜的命名术</button>
+        <button class="btn sm" onclick="StyleMemory.loadPreset('江南')" style="flex:1;min-width:80px;border-color:var(--gold);color:var(--gold-light);">江南</button>
+        <button class="btn sm" onclick="StyleMemory.loadPreset('网文热血')" style="flex:1;min-width:80px;border-color:var(--gold);color:var(--gold-light);">网文热血</button>
+        <button class="btn sm" onclick="StyleMemory.loadPreset('古风言情')" style="flex:1;min-width:80px;border-color:var(--gold);color:var(--gold-light);">古风言情</button>
+        <button class="btn sm" onclick="StyleMemory.loadPreset('悬疑推理')" style="flex:1;min-width:80px;border-color:var(--gold);color:var(--gold-light);">悬疑推理</button>
+        <button class="btn sm" onclick="StyleMemory.loadPreset('都市生活')" style="flex:1;min-width:80px;border-color:var(--gold);color:var(--gold-light);">都市生活</button>
+        <button class="btn sm" onclick="StyleMemory.loadPreset('克苏鲁恐怖')" style="flex:1;min-width:80px;border-color:var(--gold);color:var(--gold-light);">克苏鲁恐怖</button>
+      </div>
+    </div>
+    <!-- 三 Tab -->
+    <div class="sm-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:0;">
+      <button class="sm-tab active" data-tab="desc" onclick="StyleMemory.switchTab('desc')" style="flex:1;padding:8px 12px;background:none;border:none;border-bottom:2px solid var(--gold);color:var(--gold);font-size:13px;cursor:pointer;font-family:var(--font-main);">口述风格</button>
+      <button class="sm-tab" data-tab="story" onclick="StyleMemory.switchTab('story')" style="flex:1;padding:8px 12px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-dim);font-size:13px;cursor:pointer;font-family:var(--font-main);">从故事学</button>
+      <button class="sm-tab" data-tab="paste" onclick="StyleMemory.switchTab('paste')" style="flex:1;padding:8px 12px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-dim);font-size:13px;cursor:pointer;font-family:var(--font-main);">贴范文</button>
+    </div>
+    <!-- Tab: 口述风格 -->
+    <div class="sm-panel" id="sm-panel-desc" style="padding-top:12px;">
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.5;">用自然语言描述你想要的文风，AI 会生成对应的写作规则。</p>
+      <textarea id="sm-desc-text" placeholder="比如：冷峻简洁的科幻风格，像刘慈欣那样，但更注重人物心理描写。不要太多形容词，对话要干脆……" style="width:100%;min-height:80px;padding:10px;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;font-family:var(--font-main);resize:vertical;"></textarea>
+      <button class="btn primary" onclick="StyleMemory.learnFromDesc()" style="margin-top:10px;width:100%;">从描述学习</button>
+    </div>
+    <!-- Tab: 从故事学 -->
+    <div class="sm-panel hidden" id="sm-panel-story" style="padding-top:12px;">
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.5;">AI 会读取你当前故事中最近的几段剧情，从中提取写作风格特征。</p>
+      <div id="sm-story-preview" style="font-size:11px;color:var(--text-dim);max-height:120px;overflow-y:auto;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;padding:8px;margin-bottom:8px;white-space:pre-wrap;line-height:1.4;">暂无故事内容可提取</div>
+      <button class="btn primary" onclick="StyleMemory.learnFromStory()" style="width:100%;">从当前故事学习</button>
+    </div>
+    <!-- Tab: 贴范文 -->
+    <div class="sm-panel hidden" id="sm-panel-paste" style="padding-top:12px;">
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.5;">粘贴你喜欢的文风片段（至少100字），AI 会分析其写作风格。</p>
+      <textarea id="sm-sample-text" placeholder="把你想模仿的小说片段粘贴到这里……&#10;&#10;至少100字，AI才能分析出有效风格。" style="width:100%;min-height:200px;padding:10px;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;font-family:var(--font-main);resize:vertical;"></textarea>
+      <button class="btn primary" onclick="StyleMemory.learn()" style="margin-top:10px;width:100%;">学习文笔</button>
+    </div>
+    <!-- 当前生效文风：可直接修改，不必重新学习 -->
+    <div style="margin-top:14px;padding:12px;border:1px solid rgba(201,168,76,.32);border-radius:8px;background:linear-gradient(135deg,rgba(201,168,76,.08),rgba(20,17,24,.72));box-shadow:inset 0 1px 0 rgba(255,255,255,.03);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
+        <div><div style="font-size:13px;color:var(--gold-light);font-weight:700;letter-spacing:.5px;">当前生效文风</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px;">可直接增删或改写规则，保存后下一段立即生效。</div></div>
+        <select id="sm-strength" onchange="StyleMemory.setStrength(this.value)" title="控制 AI 对当前文风的执行力度" style="min-width:112px;padding:7px 9px;background:var(--input-bg);border:1px solid var(--gold-dark);border-radius:5px;color:var(--gold-light);font-size:12px;font-family:var(--font-main);cursor:pointer;"><option value="light">轻度模仿</option><option value="standard">标准模仿</option><option value="strong" selected>强制模仿</option></select>
+      </div>
+      <textarea id="sm-active-editor" placeholder="学习或选择预设后，文风规则会显示在这里。你也可以直接输入自己的规则，例如：第一人称吐槽、短句、对话密集、少环境描写……" style="width:100%;min-height:150px;padding:11px;background:rgba(12,10,15,.82);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;line-height:1.65;font-family:var(--font-main);resize:vertical;box-sizing:border-box;"></textarea>
+      <button class="btn primary" onclick="StyleMemory.applyManualEdit()" style="margin-top:9px;width:100%;">保存并立即应用修改</button>
+    </div>
+
+    <!-- 结果 + 清除 -->
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+      <button class="btn danger sm" id="sm-clear-btn" onclick="StyleMemory.clear()" style="display:none;">清除记忆</button>
+    </div>
+    <div id="sm-result" style="margin-top:8px;padding:10px;background:var(--card);border-radius:4px;display:none;white-space:pre-wrap;font-size:12px;line-height:1.6;max-height:300px;overflow-y:auto;color:var(--text-dim);"></div>
+  </div>
+</div>
+
+<!-- ====== JOURNEY DIARY PANEL ====== -->
+<div id="journey-diary-panel" class="hidden">
+  <div class="jd-header">
+    <h3>📜 旅途日记</h3>
+    <button class="jd-close" onclick="JourneyDiary.close()">×</button>
+  </div>
+  <div class="jd-tabs">
+    <div class="jd-tab active" data-tab="timeline" onclick="JourneyDiary.switchTab('timeline')">时间线</div>
+    <div class="jd-tab" data-tab="choices" onclick="JourneyDiary.switchTab('choices')">抉择</div>
+    <div class="jd-tab" data-tab="items" onclick="JourneyDiary.switchTab('items')">道具</div>
+  </div>
+  <div id="jd-content"></div>
+</div>
+
+<!-- ====== SCENARIO PRESETS MODAL ====== -->
+<div class="modal-overlay hidden" id="scenario-presets-modal">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 12px;border-bottom:1px solid var(--border);">
+      <h3 style="margin:0;">🎭 剧本规则预设</h3>
+      <button class="btn sm" onclick="UIManager.hideModal('scenario-presets-modal')">关闭</button>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.5;">
+      选择一个预设，AI 会在整个故事中严格遵守这些规则。也可以自定义。
+    </p>
+    <div id="sp-grid" class="sp-grid"></div>
+    <div id="sp-custom-area">
+      <div class="sp-custom-input-row">
+        <input type="text" id="sp-custom-input" placeholder="输入一条规则…" maxlength="100" onkeydown="if(event.key==='Enter'){ScenarioPresets.addCustomRule(this.value);this.value='';}">
+        <button class="btn sm primary" onclick="ScenarioPresets.addCustomRule(document.getElementById('sp-custom-input').value);document.getElementById('sp-custom-input').value='';">添加</button>
+      </div>
+      <div id="sp-custom-rules"></div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
+      <div style="font-size:12px;color:var(--gold);margin-bottom:6px;">规则预览</div>
+      <div id="sp-preview" style="max-height:200px;overflow-y:auto;"><span style="color:var(--text-dim);">选择预设后，这里会显示规则预览</span></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn primary" style="flex:1;" onclick="ScenarioPresets.confirm();UIManager.hideModal('scenario-presets-modal');">确认规则</button>
+      <button class="btn" onclick="ScenarioPresets.select(null);">不使用预设</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== STORY ASSISTANT ====== -->
+<button id="sa-fab" title="AI 助手 — 问答+操控" style="display:none;">💬</button>
+<div id="sa-panel" class="hidden">
+  <div class="sa-header">
+    <h4>💬 AI 助手</h4>
+    <button class="sa-clear-btn" onclick="StoryAssistant.clearHistory()">清空</button>
+  </div>
+  <!-- 操作按钮栏 -->
+  <div id="sa-action-bar" style="display:flex;gap:4px;padding:6px 8px;background:var(--card);border-bottom:1px solid var(--border);flex-wrap:wrap;">
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('choose')" title="让AI帮你选一个选项">🎯帮我选</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('continue')" title="自动续写一步">▶️继续</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('add_character')" title="新增一个人物">👤+人物</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('modify_character')" title="修改已有角色">📝改人物</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('add_location')" title="新增一个地点">📍+地点</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('add_ability')" title="新增一个功法">⚔️+功法</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('add_item')" title="给主角一个新道具">🎒+道具</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('use_item')" title="消耗/使用一个道具">🗑️用道具</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('change_relation')" title="改变角色关系">🔗改关系</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('set_status')" title="修改主角状态">💚改状态</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('edit_world')" title="修改世界观">🌍改设定</button>
+    <button class="sa-action-btn" onclick="StoryAssistant.quickAction('create_plot')" title="创造剧情走向">📜创剧情</button>
+  </div>
+  <div id="sa-chat">
+    <div class="sa-welcome">可以提问，也可以操控游戏。<br>点击上方按钮快速执行，或直接输入指令：<br>如"帮我选"、"加个新人物"、"消耗一枚丹药"、"设计一段剧情"……</div>
+  </div>
+  <div class="sa-input-area">
+    <input type="text" id="sa-input" placeholder="提问或指令，如「帮我选」「加人物」「用道具」「创剧情」…" maxlength="300">
+    <button class="sa-send-btn" onclick="StoryAssistant.send()">发送</button>
+  </div>
+</div>
+
+<!-- ====== WORLD BUILDER MODAL ====== -->
+<div class="modal-overlay hidden" id="world-builder-modal">
+  <div class="modal-card">
+    <div id="wb-header">
+      <div class="wb-tabs">
+        <button class="wb-tab active" onclick="WorldBuilder.switchTab('character')">👤 人物</button>
+        <button class="wb-tab" onclick="WorldBuilder.switchTab('ability')">⚔️ 功法/能力</button>
+        <button class="wb-tab" onclick="WorldBuilder.switchTab('location')">📍 地点</button>
+      </div>
+      <span class="wb-sep"></span>
+      <input class="wb-genre" id="wb-genre-input" placeholder="题材" onchange="WorldBuilder.setGenre(this.value)">
+      <span class="wb-sep"></span>
+      <button class="btn sm" onclick="WorldBuilder.addItem()">＋ 新建</button>
+      <button class="btn sm ai" onclick="WorldBuilder.aiFillAll()">🤖 AI补全全部</button>
+      <button class="btn sm" onclick="WorldBuilder.exportAll()">📤 导出</button>
+      <button class="btn sm" onclick="WorldBuilder.importAll()">📥 导入</button>
+      <button class="btn sm wb-close" onclick="WorldBuilder.hide()">关闭</button>
+    </div>
+    <div id="wb-body">
+      <div id="wb-list"></div>
+      <div id="wb-detail">
+        <div class="wb-hint">← 选择或新建一个条目<br>悬停空白字段出现 🤖 补全按钮</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>function _sendLog(level,message,source,lineno,stack){try{var x=new XMLHttpRequest();x.open('POST','/api/log',true);x.setRequestHeader('Content-Type','application/json');x.timeout=3000;x.send(JSON.stringify({level:level,message:String(message),source:String(source||''),lineno:String(lineno||''),stack:String(stack||'')}));}catch(e){}}</script>
+<script src="js/jszip.min.js?v=4.0"></script>
+<script src="js/storage.js?v=4.0"></script>
+<script src="js/ai-bridge.js?v=4.0"></script>
+<script>if(typeof AIBridge==='undefined'){try{var x=new XMLHttpRequest();x.open('POST','/api/log',true);x.setRequestHeader('Content-Type','application/json');x.timeout=3000;x.send(JSON.stringify({level:'error',message:'SCRIPT FAILED: ai-bridge.js - AIBridge undefined',source:'ai-bridge.js',lineno:'',stack:'typeof AIBridge === undefined'}));}catch(e){}}</script>
+<script src="js/content-generator.js?v=4.0"></script>
+<script src="js/ui-manager.js?v=4.0"></script>
+<script>if(typeof UIManager==='undefined'){try{var x=new XMLHttpRequest();x.open('POST','/api/log',true);x.setRequestHeader('Content-Type','application/json');x.timeout=3000;x.send(JSON.stringify({level:'error',message:'SCRIPT FAILED: ui-manager.js',source:'ui-manager.js',lineno:'',stack:'typeof UIManager === undefined'}));}catch(e){}}</script>
+<script src="js/api-config.js?v=4.0"></script>
+<script>if(typeof APIConfig==='undefined'){try{var x=new XMLHttpRequest();x.open('POST','/api/log',true);x.setRequestHeader('Content-Type','application/json');x.timeout=3000;x.send(JSON.stringify({level:'error',message:'SCRIPT FAILED: api-config.js',source:'api-config.js',lineno:'',stack:'typeof APIConfig === undefined'}));}catch(e){}}</script>
+<script src="js/theme-manager.js?v=4.0"></script>
+<script src="js/setup-wizard.js?v=4.0"></script>
+<script>if(typeof SetupWizard==='undefined'){try{var x=new XMLHttpRequest();x.open('POST','/api/log',true);x.setRequestHeader('Content-Type','application/json');x.timeout=3000;x.send(JSON.stringify({level:'error',message:'SCRIPT FAILED: setup-wizard.js',source:'setup-wizard.js',lineno:'',stack:'typeof SetupWizard === undefined'}));}catch(e){}}</script>
+<script src="js/style-memory.js?v=4.0"></script>
+<script src="js/character-bio.js?v=4.0"></script>
+<script>if(window.CharacterBioManager===undefined){_sendLog('error','SCRIPT FAILED: character-bio.js','character-bio.js','','');}else{_sendLog('info','character-bio.js loaded OK — CharGraph:'+typeof CharGraph+' CharGraphPanel:'+typeof CharGraphPanel,'','','');}</script>
+<script src="js/plot-plan.js?v=4.0"></script>
+<script>if(window.PLOT_GENRES===undefined){_sendLog('error','SCRIPT FAILED: plot-plan.js','plot-plan.js','','');}else{_sendLog('info','plot-plan.js loaded OK — genres:'+PLOT_GENRES.length,'','','');}</script>
+<script src="js/save-manager.js?v=4.0"></script>
+<script src="js/inventory-system.js?v=4.0"></script>
+<script src="js/annotations.js?v=4.0"></script>
+<script src="js/typewriter.js?v=4.0"></script>
+<script src="js/effects-engine.js?v=4.0"></script>
+<script src="js/writing-rules.js?v=4.0"></script>
+<script src="js/game-engine.js?v=4.0"></script>
+<script>try{var t1=typeof GameEngine,t2=typeof window.GameEngine;var hasState=t2==='object'&&window.GameEngine&&'state' in window.GameEngine;var msg='game-engine: t1='+t1+' t2='+t2+' hasState='+hasState;var x=new XMLHttpRequest();x.open('POST','/api/log',true);x.setRequestHeader('Content-Type','application/json');x.timeout=3000;x.send(JSON.stringify({level:hasState?'info':'error',message:msg}));}catch(e){_sendLog('error','game-engine check failed: '+e.message,'','','');}</script>
+<script src="js/world-builder.js?v=4.0"></script>
+<script src="js/scenario-presets.js?v=4.0"></script>
+<script src="js/journey-diary.js?v=4.0"></script>
+<script src="js/story-assistant.js?v=4.0"></script>
+<script src="js/foreshadowing.js?v=4.0"></script>
+<script>try{var s=window.Foreshadowing===undefined?'FAIL':'OK';var x=new XMLHttpRequest();x.open('POST','/api/log',true);x.setRequestHeader('Content-Type','application/json');x.timeout=3000;x.send(JSON.stringify({level:s==='OK'?'info':'error',message:'foreshadowing:'+s}));}catch(e){}</script>
+<script src="js/live-context.js?v=4.0"></script>
+<script>try{var s=window.LiveContext===undefined?'FAIL':'OK';var x=new XMLHttpRequest();x.open('POST','/api/log',true);x.setRequestHeader('Content-Type','application/json');x.timeout=3000;x.send(JSON.stringify({level:s==='OK'?'info':'error',message:'live-context:'+s}));}catch(e){}</script>
+<script src="js/app.js?v=4.0"></script>
+<script>
+// ══════════════════════════════════════════
+// 全局前端错误日志系统
+// ══════════════════════════════════════════
+(function() {
+  // 发送日志到 Flask 服务端
+  function _sendLog(level, message, source, lineno, stack) {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/log', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.timeout = 3000;
+      xhr.send(JSON.stringify({
+        level: level,
+        message: String(message),
+        source: String(source || ''),
+        lineno: String(lineno || ''),
+        stack: String(stack || '')
+      }));
+    } catch(e) { console.warn('[LogSender] failed:', e); }
+  }
+
+  // 捕获同步错误
+  window.onerror = function(msg, source, lineno, colno, error) {
+    var stack = error && error.stack ? error.stack : '';
+    console.error('[FE-Error]', msg, source, lineno, stack);
+    _sendLog('error', msg, source, lineno, stack);
+  };
+
+  // 捕获异步 Promise 错误
+  window.addEventListener('unhandledrejection', function(e) {
+    var reason = e.reason;
+    var msg = reason instanceof Error ? reason.message : String(reason);
+    var stack = reason instanceof Error ? reason.stack : '';
+    console.error('[FE-Rejection]', msg, stack);
+    _sendLog('error', 'Unhandled rejection: ' + msg, '', '', stack);
+  });
+
+  // 捕获资源加载失败
+  window.addEventListener('error', function(e) {
+    if (e.target && e.target.tagName) {
+      var tag = e.target.tagName.toLowerCase();
+      if (tag === 'script') {
+        var src = e.target.src || 'inline';
+        console.error('[FE-LoadError] Script failed:', src);
+        _sendLog('error', 'Script load failed: ' + src, src, '', '');
+      } else if (tag === 'link' || tag === 'img') {
+        var href = e.target.href || e.target.src || '';
+        console.warn('[FE-LoadError] Resource failed:', href);
+        _sendLog('warning', 'Resource load failed: ' + href, href, '', '');
+      }
+    }
+  }, true); // useCapture=true 才能捕获资源加载错误
+
+  // 快捷键 Ctrl+Shift+L 打开日志面板
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+      e.preventDefault();
+      _openLogPanel();
+    }
+  });
+
+  // 日志面板：在浏览器内直接查看
+  function _openLogPanel() {
+    var existing = document.getElementById('fe-log-panel');
+    if (existing) { existing.remove(); return; }
+
+    var panel = document.createElement('div');
+    panel.id = 'fe-log-panel';
+    panel.style.cssText = 'position:fixed;top:60px;right:20px;width:520px;height:400px;background:#111;border:2px solid #c9a84c;z-index:99999;border-radius:8px;display:flex;flex-direction:column;font-family:monospace;';
+    panel.innerHTML = '<div style="padding:8px 12px;background:#1a1a1a;border-bottom:1px solid #c9a84c;display:flex;justify-content:space-between;align-items:center;">' +
+      '<span style="color:#c9a84c;font-weight:bold;">前端日志</span>' +
+      '<div><button onclick="document.getElementById(\'fe-log-panel\').remove()" style="background:none;border:none;color:#888;font-size:16px;cursor:pointer;">✕</button></div></div>' +
+      '<div id="fe-log-content" style="padding:10px;overflow-y:auto;font-size:12px;color:#ccc;flex:1;"></div>';
+
+    document.body.appendChild(panel);
+
+    // 加载日志内容
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/logs', true);
+      xhr.timeout = 3000;
+      xhr.onload = function() {
+        var el = document.getElementById('fe-log-content');
+        if (el) {
+          el.textContent = xhr.responseText || '暂无日志';
+          el.scrollTop = el.scrollHeight;
+        }
+      };
+      xhr.onerror = function() {
+        var el = document.getElementById('fe-log-content');
+        if (el) el.textContent = '无法连接服务端获取日志';
+      };
+      xhr.send();
+    } catch(e) {}
+  }
+
+  // 额外：每个 JS 对象加载后记录确认
+  window.addEventListener('DOMContentLoaded', function() {
+    var objects = ['AIBridge','UIManager','SetupWizard','GameEngine','SaveManager','InventorySystem','EffectsEngine','AnnotationEngine','StoryAssistant','Foreshadowing','JourneyDiary','PlotPlanManager','MainMenu','APIConfig','ThemeManager','StyleMemory','CharacterBioManager','LiveContext'];
+    var missing = [];
+    objects.forEach(function(name) {
+      // 用 window[name] 检测（所有 const 对象都显式挂了 window.X = X）
+      if (window[name] === undefined) missing.push(name);
+    });
+    if (missing.length > 0) {
+      _sendLog('error', 'JS objects not loaded: ' + missing.join(', '), '', '', '');
+      console.error('[FE-Init] Missing objects:', missing);
+    } else {
+      _sendLog('info', 'All JS objects loaded OK', '', '', '');
+      console.log('[FE-Init] All objects loaded');
+    }
+  });
+})();
+
+// Service Worker: EXE 版不需要，已完全移除 PWA 相关功能
+
+/* ═══ HELLO SCREEN ═══ */
+const HelloScreen = {
+  _ready: false,
+
+  init() {
+    this._buildGhosts();
+    this._buildLines();
+    this._buildLiuma();
+    this._ready = true;
+    // 绑定黑洞按钮（不用 onclick 属性，避免 WebView2 作用域问题）
+    const btn = document.getElementById('hs-enter-btn');
+    if (btn) {
+      btn.addEventListener('click', () => this.enter());
+      console.log('[HelloScreen] 按钮绑定成功');
+    } else {
+      console.error('[HelloScreen] 找不到 hs-enter-btn');
+    }
+  },
+
+  /* 背后呼吸文字 */
+  _buildGhosts() {
+    const words=['命运','选择','书写','创造','分支','传奇','轮回','世界','无限','故事','宿命','掌控','探索'];
+    const gc=document.getElementById('hs-ghosts');
+    words.forEach(w=>{
+      const e=document.createElement('div');e.className='hs-g';e.textContent=w;
+      const fs=36+Math.random()*90, top=4+Math.random()*84, left=2+Math.random()*90;
+      const d=6+Math.random()*12, delay=-Math.random()*d;
+      Object.assign(e.style,{ '--fs':fs+'px',top:top+'%',left:left+'%', '--d':d+'s', '--delay':delay+'s' });
+      gc.appendChild(e);
+    });
+  },
+
+  /* 分支金线 + 端点 + 二级分支（星星点缀） */
+  _buildLines() {
+    const svg=document.getElementById('hs-lines');
+    const ns='http://www.w3.org/2000/svg';
+    const cx=960, cy=390;
+    const labels=['抉择','分支','命运','因果','轮回','未知','可能性','分岔'];
+    for(let i=0;i<8;i++){
+      const a=(i/8)*Math.PI*2+(Math.random()-.5)*.65;
+      const L=300+Math.random()*480;
+      const ex=cx+Math.cos(a)*L, ey=cy+Math.sin(a)*L;
+      const cpX=cx+Math.cos(a)*L*.4, cpP=cy+Math.sin(a)*L*.2;
+
+      // 主线
+      const p=document.createElementNS(ns,'path');
+      p.setAttribute('d',`M${cx},${cy} Q${cpX},${cpP} ${ex},${ey}`);
+      p.setAttribute('stroke','url(#hsGFade)');p.setAttribute('stroke-width','.5');
+      p.setAttribute('fill','none');p.classList.add('hs-fl');
+      p.style.setProperty('--len',L*1.5);p.style.setProperty('--t',(8+Math.random()*8)+'s');
+      p.style.setProperty('--d2',(Math.random()*6)+'s');
+      svg.appendChild(p);
+
+      // 端点外光晕
+      const ng=document.createElementNS(ns,'circle');
+      ng.setAttribute('cx',ex);ng.setAttribute('cy',ey);ng.setAttribute('r','10');
+      ng.setAttribute('fill','url(#hsNodeGlow)');ng.setAttribute('opacity','.3');
+      ng.classList.add('hs-nodglow');
+      svg.appendChild(ng);
+
+      // 主端点
+      const nd=document.createElementNS(ns,'circle');
+      nd.setAttribute('cx',ex);nd.setAttribute('cy',ey);nd.setAttribute('r','2');
+      nd.setAttribute('fill','#f0d88a');nd.classList.add('hs-node');
+      nd.style.setProperty('--np',(2+Math.random()*3)+'s');
+      svg.appendChild(nd);
+
+      // 主端点悬停发光
+      nd.addEventListener('mouseenter',()=>{
+        nd.setAttribute('r','5');nd.classList.add('hs-nodhover');
+        nd.style.animationPlayState='paused';
+        ng.setAttribute('r','22');ng.setAttribute('opacity','.85');
+      });
+      nd.addEventListener('mouseleave',()=>{
+        nd.setAttribute('r','2');nd.classList.remove('hs-nodhover');
+        nd.style.animationPlayState='';
+        ng.setAttribute('r','10');ng.setAttribute('opacity','.3');
+      });
+
+      // 端点文字
+      const nt=document.createElementNS(ns,'text');
+      nt.setAttribute('x',ex);nt.setAttribute('y',ey);
+      nt.setAttribute('text-anchor',ex<cx?'end':'start');
+      nt.setAttribute('dx',ex<cx?-14:14);nt.setAttribute('dy','4');
+      nt.setAttribute('fill','rgba(201,168,76,.25)');
+      nt.classList.add('hs-nt');nt.textContent=labels[i]||'';
+      nt.style.setProperty('--ntt',(4+Math.random()*4)+'s');
+      nt.style.setProperty('--ntd',(Math.random()*4)+'s');
+      svg.appendChild(nt);
+
+      // ★ 二级分支（星星点缀）70%概率
+      if(Math.random()>.3){
+        const a2=a+(Math.random()-.5)*.75;
+        const L2=100+Math.random()*160;
+        const ex2=ex+Math.cos(a2)*L2, ey2=ey+Math.sin(a2)*L2;
+        const sp=document.createElementNS(ns,'path');
+        sp.setAttribute('d',`M${ex},${ey} Q${(ex+ex2)/2},${ey} ${ex2},${ey2}`);
+        sp.setAttribute('stroke','url(#hsGFade)');sp.setAttribute('stroke-width','.3');
+        sp.setAttribute('fill','none');sp.setAttribute('opacity','.5');
+        sp.classList.add('hs-fl');sp.style.setProperty('--len',L2*1.5);
+        sp.style.setProperty('--t',(10+Math.random()*10)+'s');
+        sp.style.setProperty('--d2',(Math.random()*8)+'s');
+        svg.appendChild(sp);
+        // 二级端点（小星）
+        const nd2=document.createElementNS(ns,'circle');
+        nd2.setAttribute('cx',ex2);nd2.setAttribute('cy',ey2);nd2.setAttribute('r','1.2');
+        nd2.setAttribute('fill','#e2c97e');nd2.classList.add('hs-node2');
+        nd2.style.setProperty('--np',(3+Math.random()*3)+'s');
+        svg.appendChild(nd2);
+        // 二级端点悬停
+        nd2.addEventListener('mouseenter',()=>{
+          nd2.setAttribute('r','3.5');nd2.style.animationPlayState='paused';
+          nd2.style.filter='drop-shadow(0 0 14px rgba(240,216,138,.9)) drop-shadow(0 0 28px rgba(240,216,138,.4))';
+        });
+        nd2.addEventListener('mouseleave',()=>{
+          nd2.setAttribute('r','1.2');nd2.style.animationPlayState='';
+          nd2.style.filter='drop-shadow(0 0 3px rgba(226,201,126,.4))';
+        });
+      }
+    }
+  },
+
+  /* 流麻金尘 */
+  _buildLiuma() {
+    const ld=document.getElementById('hs-ld');
+    for(let i=0;i<65;i++){
+      const d=document.createElement('div');d.className='ldp';
+      const s=.25+Math.random()*1.1, l=5+Math.random()*90, bt=Math.random()*22;
+      const dr=6+Math.random()*14, dl=Math.random()*dr;
+      const dx=(Math.random()-.5)*45, dy=-(22+Math.random()*35);
+      const o=.05+Math.random()*.2;
+      Object.assign(d.style,{
+        width:s+'px',height:s+'px',left:l+'%',bottom:bt+'vh',
+        '--d':dr+'s','--delay':dl+'s','--dx':dx+'px','--dy':dy+'px','--o':o
+      });
+      ld.appendChild(d);
+    }
+  },
+
+  /* 点击黑洞 → 吸入动画 → 根据 bootConfig 进入对应界面
+     核心思路：先显示目标 overlay（在 hello-screen 下方），再让 hello-screen 快速渐隐，
+     这样不会出现"移除 hello-screen 后主布局裸露"的闪烁问题。
+     注意：不用 hs-exit CSS（那个渐隐太慢，中途会露出主布局） */
+  enter() {
+    const btn = document.getElementById('hs-enter-btn');
+    const screen = document.getElementById('hello-screen');
+
+    // 按钮自身：黑洞膨胀吞噬
+    btn.style.transition='all 1.2s cubic-bezier(.55,.06,.68,.25)';
+    btn.style.transform='translate(-50%,-50%) scale(18)';
+    btn.style.left='50%';btn.style.top='50%';btn.style.margin='0';
+    btn.style.position='fixed';btn.style.zIndex='10000';
+    btn.style.filter='brightness(0)';
+    btn.style.opacity='.95';
+
+    // 隐藏提示和页底
+    document.querySelector('.hs-hint').style.opacity='0';
+    const footer = document.querySelector('.hs-footer');
+    if(footer) footer.style.opacity='0';
+
+    // 黑洞动画完成后（1.5s）：先显示目标 overlay，再让 hello-screen 快速消失
+    setTimeout(() => {
+      // 确保只有目标 overlay 可见（在 hello-screen 下方，被 hello-screen 遮住）
+      document.getElementById('main-menu-overlay').classList.add('hidden');
+      document.getElementById('api-config-overlay').classList.add('hidden');
+      document.getElementById('setup-overlay').classList.add('hidden');
+
+      // 根据 bootConfig 显示目标界面
+      const cfg = window.__bootConfig;
+      const target = cfg && cfg.ok
+        ? document.getElementById('main-menu-overlay')
+        : document.getElementById('api-config-overlay');
+      target.classList.remove('hidden');
+
+      // hello-screen 快速渐隐（0.35s），此时 overlay 已经在下方可见
+      // 不用 hs-exit（那个0.8s太慢会露出主布局）
+      screen.style.transition = 'opacity 0.35s ease';
+      screen.style.opacity = '0';
+      setTimeout(() => { screen.remove(); }, 350);
+    }, 1500);
+  }
+};
+
+// 显式挂到 window，确保全局可访问
+window.HelloScreen = HelloScreen;
+
+// 页面加载后初始化 Hello Screen
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',()=>HelloScreen.init());
+} else { HelloScreen.init(); }
+</script>
+<script src="js/hello-screen.js"></script>
+<script>
+// ===== 右边栏折叠功能 =====
+(function initCollapsibleSidebar() {
+  function setup() {
+    var panel = document.getElementById('status-panel');
+    if (!panel) return;
+    var sections = panel.querySelectorAll('.stat-section h4');
+    sections.forEach(function(h4) {
+      // 跳过已有特殊按钮的标题行（人际关系有自己的 toggle）
+      if (h4.parentElement.querySelector('#char-panel-toggle')) return;
+      var section = h4.closest('.stat-section');
+      if (!section || section.classList.contains('collapsible-done')) return;
+      section.classList.add('collapsible-done');
+      // Wrap body content in .section-body
+      var body = document.createElement('div');
+      body.className = 'section-body';
+      while (h4.nextSibling) {
+        body.appendChild(h4.nextSibling);
+      }
+      section.appendChild(body);
+      // Click to toggle
+      h4.addEventListener('click', function() {
+        section.classList.toggle('collapsed');
+      });
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup);
+  } else {
+    setup();
+  }
+  // Re-run after UIManager refreshes
+  var origUpdate = UIManager.updateAllStatus;
+  UIManager.updateAllStatus = function() {
+    origUpdate.apply(this, arguments);
+    setTimeout(setup, 50);
+  };
+})();
+</script>
+  </body>
+</html>
+
+

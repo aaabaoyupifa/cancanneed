@@ -1,0 +1,10 @@
+{
+  "name": "命运之书 · 互动小说引擎",
+  "short_name": "命运之书",
+  "description": "AI驱动的互动小说创作与体验平台",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#c9a84c",
+  "icons": []
+}

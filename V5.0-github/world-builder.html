@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>命运之书 · 世界构建器</title>
+<style>
+:root {
+  --bg: #070705; --gold: #c9a84c; --gold-light: #e0c878; --gold-dim: #8a7030;
+  --panel-bg: #111110; --text: #d4c8a8; --text-dim: #7a7060;
+  --danger: #c0392b; --card-bg: #1a1a15; --border: #2a2818; --input-bg: #0d0d0a;
+  --active-tab: #1a1810;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Microsoft YaHei','PingFang SC',sans-serif;
+  height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+}
+/* Top bar */
+#topbar {
+  background: rgba(17,17,16,0.95); border-bottom: 1px solid var(--border);
+  padding: 10px 16px; display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0; z-index: 10;
+}
+#topbar .tabs { display: flex; gap: 2px; margin-right: 16px; }
+#topbar .tab {
+  padding: 7px 18px; background: transparent; border: 1px solid transparent;
+  color: var(--text-dim); cursor: pointer; font-size: 14px; font-family: inherit;
+  border-radius: 4px; transition: all 0.2s;
+}
+#topbar .tab:hover { color: var(--gold); }
+#topbar .tab.active { background: var(--active-tab); border-color: var(--gold); color: var(--gold); }
+#topbar button {
+  background: var(--card-bg); border: 1px solid var(--border); color: var(--gold);
+  padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: inherit;
+  transition: all 0.2s; white-space: nowrap;
+}
+#topbar button:hover { border-color: var(--gold); background: #2a2818; }
+#topbar button.ai-btn { background: #1a1a10; border-color: var(--gold-dim); color: var(--gold-light); }
+#topbar button.ai-btn:hover { border-color: var(--gold); }
+#topbar .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+#topbar .genre-input { background: var(--input-bg); border: 1px solid var(--border); color: var(--gold);
+  padding: 4px 10px; border-radius: 3px; font-size: 12px; width: 100px; font-family: inherit; }
+#topbar .genre-input:focus { border-color: var(--gold); outline: none; }
+
+/* Main content */
+#main { display: flex; flex: 1; overflow: hidden; }
+#list-panel {
+  width: 260px; background: var(--panel-bg); border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 4px;
+  flex-shrink: 0;
+}
+#list-panel .item {
+  padding: 10px 12px; border-radius: 4px; cursor: pointer;
+  border: 1px solid transparent; transition: all 0.15s;
+}
+#list-panel .item:hover { background: #1a1a15; border-color: var(--border); }
+#list-panel .item.selected { background: #1a1810; border-color: var(--gold-dim); }
+#list-panel .item .name { color: var(--gold); font-size: 14px; }
+#list-panel .item .sub { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+
+#detail-panel {
+  flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px;
+}
+#detail-panel h2 { color: var(--gold); font-size: 18px; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 8px; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field label { color: var(--text-dim); font-size: 11px; display: flex; align-items: center; gap: 8px; }
+.field label .ai-fill {
+  font-size: 10px; color: var(--gold-dim); cursor: pointer; opacity: 0; transition: opacity 0.2s;
+  background: none; border: 1px solid var(--gold-dim); border-radius: 3px; padding: 1px 6px;
+  font-family: inherit;
+}
+.field:hover label .ai-fill { opacity: 1; }
+.field label .ai-fill:hover { color: var(--gold); border-color: var(--gold); }
+.field label .ai-fill.loading { opacity: 1; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+.field input, .field textarea {
+  background: var(--input-bg); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 10px; border-radius: 3px;
+  font-family: inherit; font-size: 13px;
+}
+.field textarea { min-height: 50px; resize: vertical; }
+.field input:focus, .field textarea:focus { border-color: var(--gold); outline: none; }
+
+.btn-row { display: flex; gap: 8px; margin-top: 12px; }
+.btn-row button {
+  padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 13px;
+}
+.btn-save { background: var(--gold); color: var(--bg); border: none; flex: 1; }
+.btn-save:hover { background: var(--gold-light); }
+.btn-delete { background: transparent; color: var(--danger); border: 1px solid #3a1818; }
+.btn-delete:hover { background: #2a1515; }
+
+/* Toast */
+#toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 200;
+  background: var(--gold); color: var(--bg); padding: 8px 20px; border-radius: 20px;
+  font-size: 13px; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+}
+#toast.show { opacity: 1; }
+
+.empty-hint { color: var(--text-dim); text-align: center; padding: 40px 20px; font-size: 13px; line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="tabs">
+    <button class="tab active" onclick="WB.switchTab('character')">👤 人物</button>
+    <button class="tab" onclick="WB.switchTab('ability')">⚔️ 功法/能力</button>
+    <button class="tab" onclick="WB.switchTab('location')">📍 地点</button>
+  </div>
+  <span class="sep"></span>
+  <input class="genre-input" id="genre-input" placeholder="题材" onchange="WB.setGenre(this.value)">
+  <span class="sep"></span>
+  <button onclick="WB.addItem()">＋ 新建</button>
+  <button class="ai-btn" onclick="WB.aiFillAll()">🤖 AI补全全部空缺</button>
+  <span style="flex:1"></span>
+  <button onclick="WB.exportAll()">📤 导出</button>
+  <button onclick="WB.importAll()">📥 导入</button>
+</div>
+
+<div id="main">
+  <div id="list-panel"></div>
+  <div id="detail-panel">
+    <div class="empty-hint">← 选择或新建一个条目开始编辑<br>鼠标悬停在空白字段上会出现 🤖 AI补全按钮</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="js/ai-bridge.js?v=3.1apk"></script>
+<script>
+// ============ 世界构建器 ============
+const WB = {
+  tab: 'character',
+  selectedId: null,
+  genre: '',
+  data: { characters: [], abilities: [], locations: [], _nextId: 1 },
+
+  init() {
+    this._load();
+    if (typeof AIBridge !== 'undefined') { AIBridge.init(); }
+    this.genre = localStorage.getItem('wb-genre') || '';
+    document.getElementById('genre-input').value = this.genre;
+    this.render();
+  },
+
+  _load() {
+    try {
+      const raw = localStorage.getItem('world-builder-data');
+      if (raw) this.data = JSON.parse(raw);
+    } catch(e) { this.data = { characters: [], abilities: [], locations: [], _nextId: 1 }; }
+  },
+  _save() {
+    localStorage.setItem('world-builder-data', JSON.stringify(this.data));
+  },
+  setGenre(v) { this.genre = v; localStorage.setItem('wb-genre', v); },
+
+  switchTab(tab) {
+    this.tab = tab; this.selectedId = null;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent.includes(
+      tab === 'character' ? '人物' : tab === 'ability' ? '功法' : '地点')));
+    this.render();
+  },
+
+  get list() {
+    return this.tab === 'character' ? this.data.characters :
+           this.tab === 'ability' ? this.data.abilities : this.data.locations;
+  },
+
+  addItem() {
+    const defaults = {
+      character: { id: 'c'+(this.data._nextId++), name: '新人物', role: '', traits: [], appearance: '', background: '', abilities: '', level: '', weapon: '' },
+      ability: { id: 'a'+(this.data._nextId++), name: '新功法', type: '', description: '', effects: '', requirements: '' },
+      location: { id: 'l'+(this.data._nextId++), name: '新地点', type: '', description: '', significance: '', atmosphere: '' }
+    };
+    const item = defaults[this.tab];
+    this.list.push(item);
+    this.selectedId = item.id;
+    this._save();
+    this.render();
+  },
+
+  selectItem(id) {
+    this.selectedId = id;
+    this.render();
+  },
+
+  deleteItem() {
+    if (!this.selectedId) return;
+    const idx = this.list.findIndex(x => x.id === this.selectedId);
+    if (idx >= 0) { this.list.splice(idx, 1); this.selectedId = null; }
+    this._save(); this.render();
+    this.toast('已删除');
+  },
+
+  updateField(field, value) {
+    const item = this.list.find(x => x.id === this.selectedId);
+    if (!item) return;
+    if (field === 'traits') { item.traits = value.split(/[,，]/).map(s => s.trim()).filter(Boolean); }
+    else { item[field] = value; }
+    this._save();
+  },
+
+  saveItem() {
+    // Data already saved via updateField. Just toast.
+    this.toast('已保存');
+  },
+
+  // ===== AI Auto-complete =====
+  async aiFillField(field) {
+    const item = this.list.find(x => x.id === this.selectedId);
+    if (!item || !item.name) return;
+    if (typeof AIBridge === 'undefined' || !AIBridge.isConfigured()) {
+      this.toast('请先配置 AI API'); return;
+    }
+
+    const btn = document.querySelector(`.ai-fill[data-field="${field}"]`);
+    if (btn) btn.classList.add('loading');
+
+    try {
+      const result = await AIBridge.autoComplete(this.tab, item, this.genre);
+      if (result) {
+        for (const [k, v] of Object.entries(result)) {
+          if (v && (!item[k] || item[k].length < 3)) {
+            item[k] = typeof v === 'string' ? v : (Array.isArray(v) ? v.join(', ') : v);
+          }
+        }
+        this._save(); this.render();
+        this.toast('AI 补全完成');
+      }
+    } catch(e) { this.toast('补全失败: ' + e.message); }
+    if (btn) btn.classList.remove('loading');
+  },
+
+  async aiFillAll() {
+    if (typeof AIBridge === 'undefined' || !AIBridge.isConfigured()) {
+      this.toast('请先配置 AI API'); return;
+    }
+    this.toast('⏳ AI正在补全所有空缺...');
+    let count = 0;
+    const allItems = [...this.data.characters, ...this.data.abilities, ...this.data.locations];
+    for (const item of allItems) {
+      if (!item.name || item.name === '新人物' || item.name === '新功法' || item.name === '新地点') continue;
+      try {
+        const tab = this.data.characters.includes(item) ? 'character' :
+                    this.data.abilities.includes(item) ? 'ability' : 'location';
+        const result = await AIBridge.autoComplete(tab, item, this.genre);
+        if (result) {
+          for (const [k, v] of Object.entries(result)) {
+            if (v && (!item[k] || (typeof item[k] === 'string' && item[k].length < 3))) {
+              item[k] = typeof v === 'string' ? v : (Array.isArray(v) ? v.join(', ') : v);
+              count++;
+            }
+          }
+        }
+      } catch(e) {}
+    }
+    this._save(); this.render();
+    this.toast(`✅ 补全了 ${count} 个字段`);
+  },
+
+  // ===== Render =====
+  render() {
+    this._renderList();
+    this._renderDetail();
+  },
+
+  _renderList() {
+    const panel = document.getElementById('list-panel');
+    const items = this.list;
+    if (items.length === 0) {
+      panel.innerHTML = '<div class="empty-hint">暂无条目<br>点击 ＋ 新建</div>';
+      return;
+    }
+    panel.innerHTML = items.map(i => {
+      const sel = i.id === this.selectedId ? ' selected' : '';
+      const sub = this.tab === 'character' ? (i.role || i.level || '') :
+                  this.tab === 'ability' ? (i.type || '') : (i.type || '');
+      return `<div class="item${sel}" onclick="WB.selectItem('${i.id}')">
+        <div class="name">${this._esc(i.name)}</div>
+        <div class="sub">${this._esc(sub)}</div>
+      </div>`;
+    }).join('');
+  },
+
+  _renderDetail() {
+    const panel = document.getElementById('detail-panel');
+    const item = this.list.find(x => x.id === this.selectedId);
+    if (!item) {
+      panel.innerHTML = '<div class="empty-hint">← 选择或新建一个条目<br>悬停空白字段出现 🤖 补全按钮</div>';
+      return;
+    }
+
+    const F = (label, field, type='text', rows) => {
+      const val = field === 'traits' ? (item.traits||[]).join(', ') :
+                  (typeof item[field] === 'string' ? item[field] : (item[field]||''));
+      const isEmpty = !val || val.length < 2;
+      const aiBtn = isEmpty ? `<button class="ai-fill" data-field="${field}" onclick="WB.aiFillField('${field}')" title="AI补全">🤖</button>` : '';
+      const input = type === 'textarea'
+        ? `<textarea rows="${rows||2}" onchange="WB.updateField('${field}', this.value)">${this._esc(val)}</textarea>`
+        : `<input type="text" value="${this._esc(val)}" onchange="WB.updateField('${field}', this.value)">`;
+      return `<div class="field"><label>${label} ${aiBtn}</label>${input}</div>`;
+    };
+
+    let fields = '';
+    if (this.tab === 'character') {
+      fields = F('姓名', 'name') + F('身份/角色', 'role') +
+        F('性格特质（逗号分隔）', 'traits') + F('外貌', 'appearance', 'textarea', 2) +
+        F('背景故事', 'background', 'textarea', 3) +
+        F('功法/能力', 'abilities') + F('境界等级', 'level') + F('武器', 'weapon');
+    } else if (this.tab === 'ability') {
+      fields = F('功法名', 'name') + F('类型（攻击/防御/辅助/修炼）', 'type') +
+        F('描述', 'description', 'textarea', 3) + F('效果', 'effects', 'textarea', 2) +
+        F('修炼要求', 'requirements');
+    } else {
+      fields = F('地点名', 'name') + F('类型（城市/荒野/宗门/秘境）', 'type') +
+        F('描述', 'description', 'textarea', 3) + F('重要性', 'significance', 'textarea', 2) +
+        F('氛围', 'atmosphere');
+    }
+
+    panel.innerHTML = `<h2>${this._esc(item.name)}</h2>${fields}
+      <div class="btn-row">
+        <button class="btn-save" onclick="WB.saveItem()">💾 保存</button>
+        <button class="btn-delete" onclick="WB.deleteItem()">🗑 删除</button>
+      </div>`;
+  },
+
+  _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+
+  toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  },
+
+  // ===== Export/Import =====
+  exportAll() {
+    const blob = new Blob([JSON.stringify(this.data, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = '世界设定_' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+  },
+  importAll() {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+      const f = e.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try { this.data = JSON.parse(r.result); this._save(); this.render(); this.toast('导入成功'); }
+        catch(ex) { this.toast('导入失败: ' + ex.message); }
+      };
+      r.readAsText(f);
+    };
+    input.click();
+  },
+
+  /** 给故事生成用的上下文 */
+  getPromptContext() {
+    let ctx = '';
+    const cv = this.data.characters;
+    if (cv.length) {
+      ctx += '【人物设定】\n';
+      for (const c of cv) {
+        ctx += `- ${c.name}（${c.role||'未知'}）：${c.description||''}。特质：${(c.traits||[]).join('、')}。外貌：${c.appearance||'无'}。背景：${c.background||'无'}。功法：${c.abilities||'无'}。境界：${c.level||'未知'}。武器：${c.weapon||'无'}\n`;
+      }
+    }
+    const al = this.data.abilities;
+    if (al.length) {
+      ctx += '\n【功法体系】\n';
+      for (const a of al) {
+        ctx += `- ${a.name}（${a.type||'未知'}）：${a.description||''}。效果：${a.effects||'无'}。要求：${a.requirements||'无'}\n`;
+      }
+    }
+    const lc = this.data.locations;
+    if (lc.length) {
+      ctx += '\n【重要地点】\n';
+      for (const l of lc) {
+        ctx += `- ${l.name}（${l.type||'未知'}）：${l.description||''}。重要性：${l.significance||'无'}。氛围：${l.atmosphere||'无'}\n`;
+      }
+    }
+    return ctx;
+  }
+};
+
+window.addEventListener('DOMContentLoaded', () => WB.init());
+</script>
+</body>
+</html>
